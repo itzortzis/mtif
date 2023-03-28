@@ -41,16 +41,16 @@ class training():
 			tr_score, tr_loss = self.epoch_training()
 			ts_score, ts_loss = self.epoch_validation()
 
-			self.losses[epoch, 0] = tr_loss.item()
-			self.losses[epoch, 1] = ts_loss.item()
-			self.scores[epoch, 0] = tr_score.item()
-			self.scores[epoch, 1] = ts_score.item()
+			self.losses[epoch, 0] = tr_loss
+			self.losses[epoch, 1] = ts_loss
+			self.scores[epoch, 0] = tr_score
+			self.scores[epoch, 1] = ts_score
 
 			print("Epoch: ", epoch)
 			# print("Training: ", tr_score, tr_loss)
 			# print("Validation: ", ts_score, ts_loss)
-			print("Training - Score: ", tr_score.item(), " Loss: ", tr_loss.item())
-			print("Validation: - Score: ", ts_score.item(), " Loss: ", ts_loss.item())
+			print("Training - Score: ", tr_score, " Loss: ", tr_loss)
+			print("Validation: - Score: ", ts_score, " Loss: ", ts_loss)
 			print()
 
 
@@ -97,7 +97,8 @@ class training():
 			loss.backward()
 			self.opt.step()
 
-			score = self.dice_score(outputs, y)
+			score = self.calculate_iou(outputs, y)
+			print("Train Iou: ", self.calculate_iou(outputs, y), " dice: ", self.calculate_dice(outputs, y))
 			current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
@@ -130,7 +131,8 @@ class training():
 				outputs = self.model(x)
 				loss = self.loss_fn(outputs, y)
 
-			score = self.dice_score(outputs, y)
+			score = self.calculate_iou(outputs, y)
+			print("Test IoU: ", self.calculate_iou(outputs, y), " dice: ", self.calculate_dice(outputs, y))
 			current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
@@ -139,19 +141,6 @@ class training():
 
 		return epoch_score, epoch_loss
 
-
-	def batch_mean_score(self, predb, yb):
-
-		batch_size = len(predb)
-		score_sum = 0
-		idx = 0
-		for i in range(len(predb)):
-			d_score = self.dice_score(predb[i, 0, :, :], yb[i, :, :])
-			score_sum += d_score
-			idx += 1
-		score_mean = score_sum / idx
-
-		return score_mean, idx
 
 
 	def dice_score(self, preds, targets, smooth=1):
@@ -170,18 +159,18 @@ class training():
 
 			return dice
 
-	def acc_metric(self, predb, yb):
-		print("Dice score:")
-		plt.figure()
-		plt.imshow((predb.argmax(dim=1) == yb.cuda()).cpu().detach().numpy()[0, :, :])
-		plt.show()
-		return (predb.argmax(dim=1) == yb.cuda()).float().mean()  
+
+
+	def detach_tensors(self, preds, targets):
+		preds = torch.argmax(preds, dim=1)
+		preds = preds.cpu().detach().numpy()
+		targets = targets.cpu().detach().numpy()
+
+		return preds, targets
 
 
 	def calculate_iou(self, preds, ys, smooth=1):
-		preds = torch.argmax(preds, dim=1)
-		preds = preds.cpu().detach().numpy()
-		ys = ys.cpu().detach().numpy()
+		preds, ys = self.detach_tensors(preds, ys)
 		d = preds + ys
 		m = 0
 		for i in range(len(preds)):
@@ -196,9 +185,7 @@ class training():
 
 
 	def calculate_dice(self, preds, ys, smooth=1):
-		preds = torch.argmax(preds, dim=1)
-		preds = preds.cpu().detach().numpy()
-		ys = ys.cpu().detach().numpy()
+		preds, ys = self.detach_tensors(preds, ys)
 		d = preds + ys
 		m = 0
 		for i in range(len(preds)):
