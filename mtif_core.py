@@ -10,6 +10,7 @@ class training():
 		self.parameters = params
 		self.components = comps
 		self.init_components()
+		self.init_parameters()
 		self.thresh_act = self.create_threshold_activation()
 		self.model = self.model.cuda()
 		self.losses = np.zeros((self.epochs, 2))
@@ -17,13 +18,16 @@ class training():
 
 
 	def init_components(self):
-		self.thresh    = self.parameters['threshold']
-		self.epochs    = self.parameters['epochs']
 		self.model     = self.components['model']
 		self.opt       = self.components['opt']
 		self.loss_fn   = self.components['loss_fn']
 		self.train_ldr = self.components['train_ldr']
 		self.valid_ldr = self.components['valid_ldr']
+
+
+	def init_parameters(self):
+		self.thresh    = self.parameters['threshold']
+		self.epochs    = self.parameters['epochs']
 
 
 	def create_threshold_activation(self):
