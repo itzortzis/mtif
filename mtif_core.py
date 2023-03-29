@@ -5,6 +5,7 @@ import calendar
 import numpy as np
 from tqdm import tqdm
 import torch.nn.functional as F
+from matplotlib import pyplot as plt
 
 class training():
 
@@ -47,6 +48,7 @@ class training():
 	def init_paths(self):
 		self.trained_models = self.paths['trained_models']
 		self.metrics = self.paths['metrics']
+		self.figures = self.paths['figures']
 
 
 	def create_threshold_activation(self):
@@ -84,7 +86,7 @@ class training():
 	def main_training(self):
 		if not (self.print_train_details()):
 			return
-
+		self.get_current_timestamp()
 		print("Training is starting...")
 		start_time = time.time()
 		for epoch in tqdm(range(self.epochs)):
@@ -103,7 +105,13 @@ class training():
 			print()
 			self.save_model_weights(epoch, vl_score, vl_loss)
 		self.exec_time = time.time() - start_time
+		print("Total execution time: ", self.exec_time)
+		self.save_metrics()
 
+
+	def get_current_timestamp(self):
+		current_GMT = time.gmtime()
+		self.timestamp = calendar.timegm(current_GMT)
 
 	# Save_model_weights:
 	# -------------------
@@ -114,13 +122,12 @@ class training():
 	# --> score: current epoch score value
 	# --> loss: current epoch loss value
 	def save_model_weights(self, epoch, score, loss):
-		current_GMT = time.gmtime()
-		timestamp = calendar.timegm(current_GMT)
+
 
 		if epoch > self.epoch_thr and score > self.score_thr:
 			path_to_model = self.dtst_name
 			path_to_model += "_" + str(epoch) + "_" + str(score) + "_" +str(loss)
-			path_to_model += "_" + str(timestamp) + ".pth"
+			path_to_model += "_" + str(self.timestamp) + ".pth"
 			torch.save(self.model.state_dict(), path_to_model)
 
 
@@ -170,7 +177,7 @@ class training():
 		epoch_score = current_score / len(self.train_ldr.dataset)
 		epoch_loss  = current_loss / len(self.train_ldr.dataset)
 
-		return epoch_score, epoch_loss
+		return epoch_score, epoch_loss.item()
 
 
 	# Epoch_validation:
@@ -201,7 +208,7 @@ class training():
 		epoch_score = current_score / len(self.valid_ldr.dataset)
 		epoch_loss  = current_loss / len(self.valid_ldr.dataset)
 
-		return epoch_score, epoch_loss
+		return epoch_score, epoch_loss.item()
 
 
 	def detach_tensors(self, preds, targets):
@@ -237,3 +244,24 @@ class training():
 			m += (2.*inter+smooth)/(seg_1 + seg_2 + smooth)
 
 		return m/len(preds)
+
+
+	def save_metrics(self):
+		np.save(self.metrics + "scores_" + str(self.timestamp), self.scores)
+		np.save(self.metrics + "losses_" + str(self.timestamp), self.losses)
+		self.save_figures()
+
+	def save_figures(self):
+		plt.figure()
+		plt.plot(self.scores[:, 0])
+		plt.savefig(self.figures + "train_s_" + str(self.timestamp) + ".png")
+		plt.figure()
+		plt.plot(self.scores[:, 1])
+		plt.savefig(self.figures + "valid_s_" + str(self.timestamp) + ".png")
+
+		plt.figure()
+		plt.plot(self.losses[:, 0])
+		plt.savefig(self.figures + "train_l_" + str(self.timestamp) + ".png")
+		plt.figure()
+		plt.plot(self.losses[:, 1])
+		plt.savefig(self.figures + "valid_l_" + str(self.timestamp) + ".png")
