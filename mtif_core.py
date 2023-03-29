@@ -6,8 +6,8 @@ import torch.nn.functional as F
 
 class training():
 
-	def __init__(self, comps):
-
+	def __init__(self, comps, params):
+		self.parameters = params
 		self.components = comps
 		self.init_components()
 		self.thresh_act = self.create_threshold_activation()
@@ -17,8 +17,8 @@ class training():
 
 
 	def init_components(self):
-		self.thresh    = self.components['threshold']
-		self.epochs    = self.components['epochs']
+		self.thresh    = self.parameters['threshold']
+		self.epochs    = self.parameters['epochs']
 		self.model     = self.components['model']
 		self.opt       = self.components['opt']
 		self.loss_fn   = self.components['loss_fn']
@@ -30,10 +30,10 @@ class training():
 
 		return torch.nn.Threshold(self.thresh, 0)
 
-  
+
 	# Main_training:
 	# --------------
-	# The supervisor of the training procedure. 
+	# The supervisor of the training procedure.
 	def main_training(self):
 
 		for epoch in range(self.epochs):
@@ -74,8 +74,8 @@ class training():
 	# ---------------
 	# This function is used for implementing the training
 	# procedure during a single epoch.
-	# 
-	# <-- epoch_score: performance score achieved during 
+	#
+	# <-- epoch_score: performance score achieved during
 	#                  the training
 	# <-- epoch_loss: the loss function score achieved during
 	#                 the training
@@ -97,8 +97,7 @@ class training():
 			loss.backward()
 			self.opt.step()
 
-			score = self.calculate_iou(outputs, y)
-			print("Train Iou: ", self.calculate_iou(outputs, y), " dice: ", self.calculate_dice(outputs, y))
+			score = self.calculate_dice(outputs, y)
 			current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
@@ -112,8 +111,8 @@ class training():
 	# ---------------
 	# This function is used for implementing the validation
 	# procedure during a single epoch.
-	# 
-	# <-- epoch_score: performance score achieved during 
+	#
+	# <-- epoch_score: performance score achieved during
 	#                  the validation
 	# <-- epoch_loss: the loss function score achieved during
 	#                 the validation
@@ -131,8 +130,7 @@ class training():
 				outputs = self.model(x)
 				loss = self.loss_fn(outputs, y)
 
-			score = self.calculate_iou(outputs, y)
-			print("Test IoU: ", self.calculate_iou(outputs, y), " dice: ", self.calculate_dice(outputs, y))
+			score = self.calculate_dice(outputs, y)
 			current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
