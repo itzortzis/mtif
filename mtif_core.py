@@ -13,16 +13,19 @@ class training():
 		self.components = comps
 		self.paths = paths
 		self.init()
-		self.thresh_act = self.create_threshold_activation()
-		self.model = self.model.cuda()
-		self.losses = np.zeros((self.epochs, 2))
-		self.scores = np.zeros((self.epochs, 2))
+		# self.thresh_act = self.create_threshold_activation()
 
 
 	def init(self):
 		self.init_components()
 		self.init_parameters()
 		self.init_paths()
+		self.losses = np.zeros((self.epochs, 2))
+		self.scores = np.zeros((self.epochs, 2))
+
+		if self.device == 'cuda':
+			self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+			self.model = self.model.to(self.device)
 
 
 	def init_components(self):
@@ -39,6 +42,7 @@ class training():
 		self.dtst_name = self.parameters['dtst_name']
 		self.epoch_thr = self.parameters['epoch_thresh']
 		self.score_thr = self.parameters['score_thresh']
+		self.device    = self.parameters['device']
 
 
 	def init_paths(self):
@@ -68,6 +72,7 @@ class training():
 		print('\t Score threshold: ', self.score_thr)
 		print('\t Trained models path: ', self.trained_models)
 		print('\t Metrics path: ', self.metrics)
+		print('\t Device: ', self.device)
 		print()
 		option = input("Do you wish to continue? [Y/n]: ")
 		return (option == 'Y' or option == 'y')
@@ -122,8 +127,10 @@ class training():
 		x = x.to(torch.float32)
 		y = y.to(torch.int64)
 
-		x = x.cuda()
-		y = y.cuda()
+		# x = x.cuda()
+		# y = y.cuda()
+		x = x.to(self.device)
+		y = y.to(self.device)
 
 		return x, y
 
