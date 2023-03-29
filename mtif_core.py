@@ -105,7 +105,7 @@ class training():
 			print()
 			self.save_model_weights(epoch, vl_score, vl_loss)
 		self.exec_time = time.time() - start_time
-		print("Total execution time: ", self.exec_time)
+		print("Total execution time: ", self.exec_time, " seconds")
 		self.save_metrics()
 
 
