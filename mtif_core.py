@@ -13,7 +13,6 @@ class training():
 		self.components = comps
 		self.paths = paths
 		self.init()
-		# self.thresh_act = self.create_threshold_activation()
 
 
 	def init(self):
@@ -106,6 +105,14 @@ class training():
 		self.exec_time = time.time() - start_time
 
 
+	# Save_model_weights:
+	# -------------------
+	# This funtion saves the model weights during training
+	# procedure, if some requirements are satisfied.
+	#
+	# --> epoch: current epoch of the training
+	# --> score: current epoch score value
+	# --> loss: current epoch loss value
 	def save_model_weights(self, epoch, score, loss):
 		current_GMT = time.gmtime()
 		timestamp = calendar.timegm(current_GMT)
@@ -122,13 +129,10 @@ class training():
 		# x = torch.unsqueeze(x, 1)
 		x = x.movedim(2, -1)
 		x = x.movedim(1, 2)
-		# print("xaxaxa: ", x.size())
 
 		x = x.to(torch.float32)
 		y = y.to(torch.int64)
 
-		# x = x.cuda()
-		# y = y.cuda()
 		x = x.to(self.device)
 		y = y.to(self.device)
 
@@ -145,7 +149,6 @@ class training():
 	# <-- epoch_loss: the loss function score achieved during
 	#                 the training
 	def epoch_training(self):
-		# print("Epoch training")
 		self.model.train(True)
 		current_score = 0.0
 		current_loss = 0.0
@@ -157,8 +160,6 @@ class training():
 			self.opt.zero_grad()
 			outputs = self.model(x)
 			loss = self.loss_fn(outputs, y)
-
-			# loss.requires_grad = True
 			loss.backward()
 			self.opt.step()
 
@@ -182,8 +183,6 @@ class training():
 	# <-- epoch_loss: the loss function score achieved during
 	#                 the validation
 	def epoch_validation(self):
-
-		# print("Epoch validation")
 		self.model.train(False)
 		current_score = 0.0
 		current_loss = 0.0
@@ -221,8 +220,6 @@ class training():
 			c = d[i, :, :]
 			inter = np.count_nonzero(c > 1)
 			union = np.count_nonzero(c > 0)
-			# print("Intersection: ", inter, "Union: ", union, "IoU:", (inter+smooth)/(union+smooth))
-
 			m += (inter+smooth)/(union+smooth)
 
 		return m/len(preds)
@@ -237,8 +234,6 @@ class training():
 			inter = np.count_nonzero(c > 1)
 			seg_1 = np.count_nonzero(preds > 0)
 			seg_2 = np.count_nonzero(ys > 0)
-			# print("Intersection: ", inter, "Union: ", union, "IoU:", (inter+smooth)/(union+smooth))
-
 			m += (2.*inter+smooth)/(seg_1 + seg_2 + smooth)
 
 		return m/len(preds)
