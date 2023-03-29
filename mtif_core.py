@@ -198,25 +198,6 @@ class training():
 		return epoch_score, epoch_loss
 
 
-
-	def dice_score(self, preds, targets, smooth=1):
-
-		# preds = torch.squeeze(preds, 1)
-		# preds = self.thresh_act(preds)
-		# preds = torch.ceil(preds)
-		with torch.no_grad():
-			preds = torch.argmax(preds, dim=1)
-
-			preds = preds.view(-1)
-			targets = targets.view(-1)
-
-			intersection = (preds * targets).sum()
-			dice = (2.*intersection + smooth)/(preds.sum() + targets.sum() + smooth)
-
-			return dice
-
-
-
 	def detach_tensors(self, preds, targets):
 		preds = torch.argmax(preds, dim=1)
 		preds = preds.cpu().detach().numpy()
