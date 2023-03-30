@@ -40,6 +40,7 @@ class training():
 
 	def init_parameters(self):
 		self.thresh    = self.parameters['threshold']
+		self.in_chnls  = self.parameters['in_channels']
 		self.epochs    = self.parameters['epochs']
 		self.dtst_name = self.parameters['dtst_name']
 		self.epoch_thr = self.parameters['epoch_thresh']
@@ -136,9 +137,11 @@ class training():
 
 
 	def prepare_data(self, x, y):
-		# x = torch.unsqueeze(x, 1)
-		x = x.movedim(2, -1)
-		x = x.movedim(1, 2)
+		if self.in_chnls < 2:
+			x = torch.unsqueeze(x, 1)
+		else:
+			x = x.movedim(2, -1)
+			x = x.movedim(1, 2)
 
 		x = x.to(torch.float32)
 		y = y.to(torch.int64)
