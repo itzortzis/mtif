@@ -4,6 +4,7 @@ import torch
 import calendar
 import numpy as np
 from tqdm import tqdm
+from torchmetrics import Dice
 import torch.nn.functional as F
 from matplotlib import pyplot as plt
 
@@ -234,18 +235,15 @@ class training():
 		return m/len(preds)
 
 
-	def calculate_dice(self, preds, ys, smooth=1):
-		preds, ys = self.detach_tensors(preds, ys)
-		d = preds + ys
-		m = 0
-		for i in range(len(preds)):
-			c = d[i, :, :]
-			inter = np.count_nonzero(c > 1)
-			seg_1 = np.count_nonzero(preds > 0)
-			seg_2 = np.count_nonzero(ys > 0)
-			m += (2.*inter+smooth)/(seg_1 + seg_2 + smooth)
-
-		return m/len(preds)
+	def calculate_dice(self, preds, targets, smooth=1):
+		preds = preds.cpu()
+		targets = targets.cpu()
+		preds = torch.argmax(preds, dim=1)
+		preds = preds.view(-1)
+		targets = targets.view(-1)
+		dice = Dice(average='macro', num_classes=2)
+		d = dice(preds, targets)
+		return d
 
 
 	def save_metrics(self):
