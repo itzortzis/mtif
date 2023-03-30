@@ -211,7 +211,7 @@ class training():
 		epoch_score = current_score / len(self.valid_ldr.dataset)
 		epoch_loss  = current_loss / len(self.valid_ldr.dataset)
 
-		return epoch_score, epoch_loss.item()
+		return epoch_score.item(), epoch_loss.item()
 
 
 	def detach_tensors(self, preds, targets):
