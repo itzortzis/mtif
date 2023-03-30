@@ -55,6 +55,7 @@ class training():
 
 		return torch.nn.Threshold(self.thresh, 0)
 
+
 	def print_logo(self):
 		print("""\
                     *    *    * *
@@ -63,6 +64,7 @@ class training():
         *      *    *    *   *
         *      *    **   **  *
                     """)
+
 
 	def print_train_details(self):
 		self.print_logo()
@@ -75,8 +77,8 @@ class training():
 		print('\t Metrics path: ', self.metrics)
 		print('\t Device: ', self.device)
 		print()
-		option = input("Do you wish to continue? [Y/n]: ")
-		return (option == 'Y' or option == 'y')
+		# option = input("Do you wish to continue? [Y/n]: ")
+		return True or (option == 'Y' or option == 'y')
 
 
 
