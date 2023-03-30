@@ -180,7 +180,7 @@ class training():
 		epoch_score = current_score / len(self.train_ldr.dataset)
 		epoch_loss  = current_loss / len(self.train_ldr.dataset)
 
-		return epoch_score, epoch_loss.item()
+		return epoch_score.item(), epoch_loss.item()
 
 
 	# Epoch_validation:
