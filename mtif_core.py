@@ -127,9 +127,8 @@ class training():
 	# --> loss: current epoch loss value
 	def save_model_weights(self, epoch, score, loss):
 
-
 		if epoch > self.epoch_thr and score > self.score_thr:
-			path_to_model = self.dtst_name
+			path_to_model = self.trained_models + self.dtst_name
 			path_to_model += "_" + str(epoch) + "_" + str(score) + "_" +str(loss)
 			path_to_model += "_" + str(self.timestamp) + ".pth"
 			torch.save(self.model.state_dict(), path_to_model)
