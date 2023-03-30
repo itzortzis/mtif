@@ -25,6 +25,7 @@ class training():
 		self.scores = np.zeros((self.epochs, 2))
 
 		if self.device == 'cuda':
+			print("Cuda available")
 			self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 			self.model = self.model.to(self.device)
 
