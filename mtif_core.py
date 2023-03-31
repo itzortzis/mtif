@@ -23,6 +23,9 @@ class training():
 		self.init_paths()
 		self.losses = np.zeros((self.epochs, 2))
 		self.scores = np.zeros((self.epochs, 2))
+		self.max_score = 0
+		self.log = open("logs.txt", "a")  # append mode
+
 
 		if self.device == 'cuda':
 			print("Cuda available")
@@ -127,12 +130,20 @@ class training():
 	# --> score: current epoch score value
 	# --> loss: current epoch loss value
 	def save_model_weights(self, epoch, score, loss):
-		score = score * 100
-		if epoch > self.epoch_thr and score > self.score_thr:
+		# score = score * 100
+		# if epoch > self.epoch_thr and score > self.score_thr:
+		# 	path_to_model = self.trained_models + self.dtst_name
+		# 	path_to_model += "_" + str(epoch) + "_" + str(score) + "_" +str(loss)
+		# 	path_to_model += "_" + str(self.timestamp) + ".pth"
+		# 	torch.save(self.model.state_dict(), path_to_model)
+
+		if score > self.max_score and epoch > self.epoch_thr:
 			path_to_model = self.trained_models + self.dtst_name
-			path_to_model += "_" + str(epoch) + "_" + str(score) + "_" +str(loss)
 			path_to_model += "_" + str(self.timestamp) + ".pth"
 			torch.save(self.model.state_dict(), path_to_model)
+			log = str(epoch) + " " + str(score) + " " + path_to_model + "\n"
+			self.log.write(log)
+			self.max_score = score
 
 
 
