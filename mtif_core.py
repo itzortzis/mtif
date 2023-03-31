@@ -250,21 +250,23 @@ class training():
 
 
 	def save_metrics(self):
-		np.save(self.metrics + "scores_" + str(self.timestamp), self.scores)
-		np.save(self.metrics + "losses_" + str(self.timestamp), self.losses)
+		postfix = self.dtst_name + "_" + str(self.timestamp)
+		np.save(self.metrics + "scores_" + postfix, self.scores)
+		np.save(self.metrics + "losses_" + postfix, self.losses)
 		self.save_figures()
 
 	def save_figures(self):
+		postfix = self.dtst_name + "_" + str(self.timestamp) + ".png"
 		plt.figure()
 		plt.plot(self.scores[:, 0])
-		plt.savefig(self.figures + "train_s_" + str(self.timestamp) + ".png")
+		plt.savefig(self.figures + "train_s_" + postfix)
 		plt.figure()
 		plt.plot(self.scores[:, 1])
-		plt.savefig(self.figures + "valid_s_" + str(self.timestamp) + ".png")
+		plt.savefig(self.figures + "valid_s_" + postfix)
 
 		plt.figure()
 		plt.plot(self.losses[:, 0])
-		plt.savefig(self.figures + "train_l_" + str(self.timestamp) + ".png")
+		plt.savefig(self.figures + "train_l_" + postfix)
 		plt.figure()
 		plt.plot(self.losses[:, 1])
-		plt.savefig(self.figures + "valid_l_" + str(self.timestamp) + ".png")
+		plt.savefig(self.figures + "valid_l_" + postfix)
