@@ -115,6 +115,12 @@ class training():
 		self.exec_time = time.time() - start_time
 		print("Total execution time: ", self.exec_time, " seconds")
 		self.save_metrics()
+		self.update_log()
+
+
+	def update_log(self):
+		self.log.write(self.log_line)
+		self.log.close()
 
 
 	def get_current_timestamp(self):
@@ -142,7 +148,7 @@ class training():
 			path_to_model += "_" + str(self.timestamp) + ".pth"
 			torch.save(self.model.state_dict(), path_to_model)
 			log = str(epoch) + " " + str(score) + " " + path_to_model + "\n"
-			self.log.write(log)
+			self.log_line = log
 			self.max_score = score
 
 
