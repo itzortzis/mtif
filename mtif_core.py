@@ -103,6 +103,7 @@ class training():
 		self.clear_flag = self.parameters['clear_flag']
 		self.d_start    = self.parameters['d_start']
 		self.d_end      = self.parameters['d_end']
+		self.inf_model  = self.parameters['inf_model_name']
 
 	def init_paths(self):
 		self.trained_models = self.paths['trained_models']
@@ -232,6 +233,8 @@ class training():
 			self.save_model_weights(epoch, vl_score, vl_loss)
 		self.exec_time = time.time() - start_time
 		print("Total execution time: ", self.exec_time, " seconds")
+		self.test_set_score = self.inference()
+		self.log_line = str(self.test_set_score) + " " + self.log_line
 		self.save_metrics()
 		self.update_log()
 
@@ -346,6 +349,47 @@ class training():
 		return epoch_score.item(), epoch_loss.item()
 
 
+	def inference(self):
+
+		self.model.eval()
+		current_score = 0.0
+		current_loss = 0.0
+
+		for x, y in self.test_ldr:
+			x, y = self.prepare_data(x, y)
+
+			with torch.no_grad():
+				outputs = self.model(x)
+
+			score = self.calculate_dice(outputs, y)
+			current_score += score * self.test_ldr.batch_size
+
+		test_set_score = current_score / len(self.test_ldr.dataset)
+
+		return test_set_score.item()
+
+
+	def ext_inference(self, set_ldr):
+		path_to_model = self.trained_models + self.inf_model
+		self.model.load_state_dict(torch.load(path_to_model))
+		self.model.eval()
+		current_score = 0.0
+
+		for x, y in set_ldr:
+			x, y = self.prepare_data(x, y)
+
+			with torch.no_grad():
+				outputs = self.model(x)
+
+			score = self.calculate_dice(outputs, y)
+			current_score += score * set_ldr.batch_size
+
+		test_set_score = current_score / len(set_ldr.dataset)
+
+		return test_set_score.item()
+
+
+
 	def detach_tensors(self, preds, targets):
 		preds = torch.argmax(preds, dim=1)
 		preds = preds.cpu().detach().numpy()
@@ -383,6 +427,7 @@ class training():
 		np.save(self.metrics + "scores_" + postfix, self.scores)
 		np.save(self.metrics + "losses_" + postfix, self.losses)
 		self.save_figures()
+
 
 	def save_figures(self):
 		postfix = self.dtst_name + "_" + str(self.timestamp) + ".png"
