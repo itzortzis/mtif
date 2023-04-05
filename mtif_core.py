@@ -4,9 +4,54 @@ import torch
 import calendar
 import numpy as np
 from tqdm import tqdm
+from skimage import exposure
 from torchmetrics import Dice
 import torch.nn.functional as F
+from sklearn.cluster import KMeans
 from matplotlib import pyplot as plt
+
+
+class Dataset(torch.utils.data.Dataset):
+	def __init__(self, d):
+		self.dtst = d
+
+	def __len__(self):
+		return len(self.dtst)
+
+	def __getitem__(self, index):
+		obj = self.dtst[index, :, :, :]
+		e = np.where(obj[:, :, 0] < 0.3)
+		t = self.equalize_hist(obj, e)
+		# t1 = t - obj[:, :, 0]
+
+		# cl = self.apply_clustering(obj[:, :, 0], e, 5)
+		# temp = np.zeros((obj.shape[0], obj.shape[0], 3))
+		# temp[:, :, 0] = obj[:, :, 0]
+		# temp[:, :, 1] = cl
+		# temp[:, :, 2] = t
+		x = torch.from_numpy(obj[:, :, 0])
+		# x = torch.from_numpy(temp)
+		y = torch.from_numpy(obj[:, :, 1])
+
+		return x, y
+
+
+	def equalize_hist(self, obj, e):
+		t = exposure.equalize_hist(obj[:, :, 0])
+		t[e] = 0
+
+		return t
+
+	def apply_clustering(self, img, e, clusters):
+		flatImg=np.reshape(img, [-1, 1])
+		kmeans = KMeans(n_clusters=clusters, random_state=0, n_init="auto").fit(flatImg)
+		labels = kmeans.labels_
+		clusteredImg = np.reshape(labels, img.shape)
+		clusteredImg += 1
+		clusteredImg[e] = 0
+
+		return clusteredImg
+
 
 class training():
 
@@ -21,6 +66,10 @@ class training():
 		self.init_components()
 		self.init_parameters()
 		self.init_paths()
+		self.clean_dataset()
+		self.split_dataset(self.d_start, self.d_end)
+		self.normalize_sets()
+		self.build_loaders()
 		self.losses = np.zeros((self.epochs, 2))
 		self.scores = np.zeros((self.epochs, 2))
 		self.max_score = 0
@@ -37,24 +86,93 @@ class training():
 		self.model     = self.components['model']
 		self.opt       = self.components['opt']
 		self.loss_fn   = self.components['loss_fn']
-		self.train_ldr = self.components['train_ldr']
-		self.valid_ldr = self.components['valid_ldr']
+		# self.train_ldr = self.components['train_ldr']
+		# self.valid_ldr = self.components['valid_ldr']
+		self.dataset = self.components['dataset']
 
 
 	def init_parameters(self):
-		self.thresh    = self.parameters['threshold']
-		self.in_chnls  = self.parameters['in_channels']
-		self.epochs    = self.parameters['epochs']
-		self.dtst_name = self.parameters['dtst_name']
-		self.epoch_thr = self.parameters['epoch_thresh']
-		self.score_thr = self.parameters['score_thresh']
-		self.device    = self.parameters['device']
-
+		self.thresh     = self.parameters['threshold']
+		self.in_chnls   = self.parameters['in_channels']
+		self.epochs     = self.parameters['epochs']
+		self.dtst_name  = self.parameters['dtst_name']
+		self.epoch_thr  = self.parameters['epoch_thresh']
+		self.score_thr  = self.parameters['score_thresh']
+		self.device     = self.parameters['device']
+		self.batch_size = self.parameters['batch_size']
+		self.clear_flag = self.parameters['clear_flag']
+		self.d_start    = self.parameters['d_start']
+		self.d_end      = self.parameters['d_end']
 
 	def init_paths(self):
 		self.trained_models = self.paths['trained_models']
 		self.metrics = self.paths['metrics']
 		self.figures = self.paths['figures']
+
+
+	def clean_dataset(self):
+		if not self.clear_flag:
+			return
+		print(self.dataset.shape)
+		temp = np.zeros(self.dataset.shape)
+		idx = 0
+		for i in range(len(self.dataset)):
+			if np.sum(self.dataset[i, :, :, 0]) < 10000:
+				continue
+			temp[idx, :, :, :] = self.dataset[i, :, :, :]
+			idx += 1
+		self.dataset = temp[:idx, :, :, :]
+		print(self.dataset.shape)
+
+
+	def normalize(self, s):
+		max_ = np.max(s[:, :, :, 0])
+		min_ = np.min(s[:, :, :, 0])
+
+		for i in range(len(s)):
+			s[i, :, :, 0] = (s[i, :, :, 0] - min_) / (max_ - min_)
+			s[i, :, :, 1] = np.where(s[i, :, :, 1] > 0, 1, 0)
+
+		return s
+
+
+	def normalize_sets(self):
+		self.train_set = self.normalize(self.train_set)
+		self.valid_set = self.normalize(self.valid_set)
+		self.set_set = self.normalize(self.test_set)
+
+
+	def split_dataset(self, d_start, d_end):
+		self.dataset = self.dataset[d_start: d_end]
+		rp = np.random.permutation(self.dataset.shape[0])
+		self.dataset = self.dataset[rp]
+
+		train_set_size = int(0.7 * len(self.dataset))
+		valid_set_size = int(0.2 * len(self.dataset))
+		test_set_size  = int(0.1 * len(self.dataset))
+
+		train_start = 0
+		train_end = train_set_size
+		valid_start = train_set_size
+		valid_end = valid_start + valid_set_size
+		test_start = valid_end
+		test_end = test_start + test_set_size
+
+		self.train_set = self.dataset[train_start: train_end, :, :, :]
+		self.valid_set = self.dataset[valid_start: valid_end, :, :, :]
+		self.test_set = self.dataset[test_start: test_end, :, :, :]
+
+
+	def build_loaders(self):
+		train_set      = Dataset(self.train_set)
+		params         = {'batch_size': self.batch_size, 'shuffle': True}
+		self.train_ldr = torch.utils.data.DataLoader(train_set, **params)
+		valid_set      = Dataset(self.valid_set)
+		params         = {'batch_size': self.batch_size, 'shuffle': False}
+		self.valid_ldr = torch.utils.data.DataLoader(valid_set, **params)
+		test_set       = Dataset(self.test_set)
+		params         = {'batch_size': self.batch_size, 'shuffle': False}
+		self.test_ldr  = torch.utils.data.DataLoader(test_set, **params)
 
 
 	def create_threshold_activation(self):
