@@ -244,6 +244,10 @@ class training():
 		self.log.close()
 
 
+	# Get_current_timestamp:
+	# ----------------------
+	# This function calculates the current timestamp that is
+	# used as unique id for saving the experimental details
 	def get_current_timestamp(self):
 		current_GMT = time.gmtime()
 		self.timestamp = calendar.timegm(current_GMT)
@@ -268,6 +272,15 @@ class training():
 			self.max_score = score
 
 
+	# Prepare_data:
+	# -------------
+	# Given x and y tensors, this function applies some basic
+	# transformations/changes related to dimensions, data types,
+	# and device.
+	#
+	# --> x: tensor containing a batch of input images
+	# --> y: tensor containing a batch of annotation masks
+	# <-- x, y: the updated tensors
 	def prepare_data(self, x, y):
 		if self.in_chnls < 2:
 			x = torch.unsqueeze(x, 1)
@@ -349,6 +362,12 @@ class training():
 		return epoch_score.item(), epoch_loss.item()
 
 
+	# Inference:
+	# ----------
+	# Applies inference to the testing set extracted from
+	# the input dataset during the initialization phase
+	#
+	# <-- test_set_score: the score achieved by the trained model
 	def inference(self):
 
 		self.model.eval()
@@ -389,7 +408,9 @@ class training():
 		return test_set_score.item()
 
 
-
+	# detach_tensors:
+	# ---------------
+	# Given preds and targets tensors, this function
 	def detach_tensors(self, preds, targets):
 		preds = torch.argmax(preds, dim=1)
 		preds = preds.cpu().detach().numpy()
