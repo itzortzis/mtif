@@ -487,7 +487,7 @@ class cv_training():
 		self.clean_dataset()
 		self.split_dataset(self.d_start, self.d_end)
 		self.normalize_sets()
-		self.build_loaders()
+		self.build_test_loader()
 		self.losses = np.zeros((self.k, self.epochs, 2))
 		self.scores = np.zeros((self.k, self.epochs, 2))
 		self.log = open("logs.txt", "a")  # append mode
@@ -504,12 +504,13 @@ class cv_training():
 		self.cvm['max_score'] = 0
 		self.cvm['model_dicts'] = {}
 		self.cvm['max_epoch_score'] = {}
+		self.cvm['fold_best_epoch'] = {}
 
 
 	def init_components(self):
-		self.model     = self.components['model']
-		self.opt       = self.components['opt']
-		self.loss_fn   = self.components['loss_fn']
+		self.model   = self.components['model']
+		self.opt     = self.components['opt']
+		self.loss_fn = self.components['loss_fn']
 		self.dataset = self.components['dataset']
 
 
@@ -527,7 +528,6 @@ class cv_training():
 		self.d_end      = self.parameters['d_end']
 		self.inf_model  = self.parameters['inf_model_name']
 		self.k          = self.parameters['k']
-		self.CV         = self.parameters['CV']
 
 	def init_paths(self):
 		self.trained_models = self.paths['trained_models']
@@ -566,14 +566,18 @@ class cv_training():
 		self.set_set = self.normalize(self.test_set)
 
 
-	def dataset_split(self):
+	def split_dataset(self, d_start, d_end):
+		self.dataset = self.dataset[d_start: d_end]
+		rp = np.random.permutation(self.dataset.shape[0])
+		self.dataset = self.dataset[rp]
+
 		train_set_size = int(0.8 * len(self.dataset))
 		test_set_size = int(0.2 * len(self.dataset))
 
 		train_start = 0
 		train_end = train_set_size
 		test_start = train_set_size
-		test_end = valid_start + valid_set_size
+		test_end = test_start + test_set_size
 
 		self.train_set = self.dataset[train_start: train_end, :, :, :]
 		self.test_set = self.dataset[test_start: test_end, :, :, :]
@@ -637,20 +641,22 @@ class cv_training():
 
 	# Cross_validation:
 	# -----------------
-	# The supervisor of the training procedure using cross-validation.
+	# The supervisor of the training procedure using a k-fold
+	# cross-validation schema
 	def cross_validation(self):
 		if not (self.print_train_details()):
 			return
 		self.get_current_timestamp()
 		print("Training is starting...")
 		start_time = time.time()
-		fold_size = len(dataset) // self.k
-		self.test_set_score = 0
+		fold_size = len(self.train_set) // self.k
+		self.cvm['max_score'] = 0
 		for cv_i in range(self.k):
 			self.cv_training_split(cv_i, fold_size)
 			self.cv_build_loaders()
 			self.cvm['max_epoch_score'][cv_i] = 0
-
+			print()
+			print("Training using ", str(cv_i), " fold for validation.")
 			for epoch in tqdm(range(self.epochs)):
 				tr_score, tr_loss = self.epoch_training()
 				vl_score, vl_loss = self.epoch_validation()
@@ -664,25 +670,29 @@ class cv_training():
 				self.keep_model_weights(epoch, vl_score, cv_i)
 
 			test_set_score = self.inference(cv_i)
-			self.save_best_model(test_set_score)
+			self.save_best_model(test_set_score, cv_i)
 		self.exec_time = time.time() - start_time
 		print("Total execution time: ", self.exec_time, " seconds")
-
-		self.log_line = str(self.test_set_score) + " " + self.log_line
+		self.save_model_weights(self.cvm['best_model_epoch'], self.cvm['max_score'])
+		# self.log_line = str(self.test_set_score) + " " + self.log_line
 		self.save_metrics()
 		self.update_log()
 
 
-	def save_best_model(self, test_set_score):
+	def save_best_model(self, test_set_score, cv_i):
 
-		if test_set_score > self.test_set_score
-			self.test_set_score = test_set_score
-			self.best_model = self.model.state_dict()
+		if test_set_score > self.cvm['max_score']:
+			self.cvm['max_score'] = test_set_score
+			self.cvm['best_model'] = self.model.state_dict()
+			self.cvm['best_model_epoch'] = self.cvm['fold_best_epoch'][cv_i]
+			self.cvm['losses'] = self.losses[cv_i, :, :]
+			self.cvm['scores'] = self.scores[cv_i, :, :]
 
 
 	def keep_model_weights(self, epoch, score, cv_i):
 
 		if score > self.cvm['max_epoch_score'][cv_i] and epoch > self.epoch_thr:
+			self.cvm['fold_best_epoch'][cv_i] = epoch
 			self.cvm['max_epoch_score'][cv_i] = score
 			self.cvm['model_dicts'][cv_i] = self.model.state_dict()
 
@@ -714,10 +724,12 @@ class cv_training():
 
 		path_to_model = self.trained_models + self.dtst_name
 		path_to_model += "_" + str(self.timestamp) + ".pth"
-		torch.save(self.best_model, path_to_model)
-		log = str(epoch) + " " + str(score) + " " + path_to_model + "\n"
+		torch.save(self.cvm['best_model'], path_to_model)
+		log = str(self.cvm['best_model_epoch']) + " "
+		log += str(self.cvm['max_score'])
+		log += " " + path_to_model + "\n"
 		self.log_line = log
-		self.max_score = score
+		# self.max_score = score
 
 
 	# Prepare_data:
@@ -817,7 +829,7 @@ class cv_training():
 	#
 	# <-- test_set_score: the score achieved by the trained model
 	def inference(self, cv_i):
-		model.load_state_dict(self.cvm['model_dicts'][cv_i])
+		self.model.load_state_dict(self.cvm['model_dicts'][cv_i])
 		self.model.eval()
 		current_score = 0.0
 		current_loss = 0.0
@@ -895,21 +907,21 @@ class cv_training():
 		postfix = self.dtst_name + "_" + str(self.timestamp)
 		np.save(self.metrics + "scores_" + postfix, self.scores)
 		np.save(self.metrics + "losses_" + postfix, self.losses)
-		# self.save_figures()
+		self.save_figures()
 
 
-	# def save_figures(self):
-	# 	postfix = self.dtst_name + "_" + str(self.timestamp) + ".png"
-	# 	plt.figure()
-	# 	plt.plot(self.scores[:, 0])
-	# 	plt.savefig(self.figures + "train_s_" + postfix)
-	# 	plt.figure()
-	# 	plt.plot(self.scores[:, 1])
-	# 	plt.savefig(self.figures + "valid_s_" + postfix)
-	#
-	# 	plt.figure()
-	# 	plt.plot(self.losses[:, 0])
-	# 	plt.savefig(self.figures + "train_l_" + postfix)
-	# 	plt.figure()
-	# 	plt.plot(self.losses[:, 1])
-	# 	plt.savefig(self.figures + "valid_l_" + postfix)
+	def save_figures(self):
+		postfix = self.dtst_name + "_" + str(self.timestamp) + ".png"
+		plt.figure()
+		plt.plot(self.cvm['scores'][:, 0])
+		plt.savefig(self.figures + "train_s_" + postfix)
+		plt.figure()
+		plt.plot(self.cvm['scores'][:, 1])
+		plt.savefig(self.figures + "valid_s_" + postfix)
+
+		plt.figure()
+		plt.plot(self.cvm['losses'][:, 0])
+		plt.savefig(self.figures + "train_l_" + postfix)
+		plt.figure()
+		plt.plot(self.cvm['losses'][:, 1])
+		plt.savefig(self.figures + "valid_l_" + postfix)
