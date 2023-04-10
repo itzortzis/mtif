@@ -483,14 +483,13 @@ class cv_training():
 		self.init_components()
 		self.init_parameters()
 		self.init_paths()
+		self.init_cv_models()
 		self.clean_dataset()
 		self.split_dataset(self.d_start, self.d_end)
 		self.normalize_sets()
 		self.build_loaders()
-		self.model_dicts = {}
 		self.losses = np.zeros((self.k, self.epochs, 2))
 		self.scores = np.zeros((self.k, self.epochs, 2))
-		self.max_score = 0
 		self.log = open("logs.txt", "a")  # append mode
 
 
@@ -498,6 +497,13 @@ class cv_training():
 			print("Cuda available")
 			self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 			self.model = self.model.to(self.device)
+
+
+	def init_cv_models(self):
+		self.cvm = {}
+		self.cvm['max_score'] = 0
+		self.cvm['model_dicts'] = {}
+		self.cvm['max_epoch_score'] = {}
 
 
 	def init_components(self):
@@ -643,7 +649,7 @@ class cv_training():
 		for cv_i in range(self.k):
 			self.cv_training_split(cv_i, fold_size)
 			self.cv_build_loaders()
-			self.max_epoch_score = 0
+			self.cvm['max_epoch_score'][cv_i] = 0
 
 			for epoch in tqdm(range(self.epochs)):
 				tr_score, tr_loss = self.epoch_training()
@@ -674,17 +680,18 @@ class cv_training():
 			self.best_model = self.model.state_dict()
 
 
+	def keep_model_weights(self, epoch, score, cv_i):
+
+		if score > self.cvm['max_epoch_score'][cv_i] and epoch > self.epoch_thr:
+			self.cvm['max_epoch_score'][cv_i] = score
+			self.cvm['model_dicts'][cv_i] = self.model.state_dict()
+
+
 	def print_scores(self, tr_score, tr_loss, vl_score, vl_loss):
 		print()
 		print("\t Training - Score: ", tr_score, " Loss: ", tr_loss)
 		print("\t Validation: - Score: ", vl_score, " Loss: ", vl_loss)
 		print()
-
-
-	def keep_model_weights(self, epoch, score, cv_i):
-
-		if score > self.max_epoch_score and epoch > self.epoch_thr:
-			self.model_dicts[cv_i] = self.model.state_dict()
 
 
 
@@ -810,7 +817,7 @@ class cv_training():
 	#
 	# <-- test_set_score: the score achieved by the trained model
 	def inference(self, cv_i):
-		model.load_state_dict(self.model_dicts[cv_i])
+		model.load_state_dict(self.cvm['model_dicts'][cv_i])
 		self.model.eval()
 		current_score = 0.0
 		current_loss = 0.0
