@@ -727,7 +727,8 @@ class cv_training():
 		torch.save(self.cvm['best_model'], path_to_model)
 		log = str(self.cvm['best_model_epoch']) + " "
 		log += str(self.cvm['max_score'])
-		log += " " + path_to_model + "\n"
+		log += " " + path_to_model + " "
+		log += self.d_start + " " + self.d_end + "\n"
 		self.log_line = log
 		# self.max_score = score
 
