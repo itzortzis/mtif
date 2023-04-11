@@ -728,7 +728,7 @@ class cv_training():
 		log = str(self.cvm['best_model_epoch']) + " "
 		log += str(self.cvm['max_score'])
 		log += " " + path_to_model + " "
-		log += self.d_start + " " + self.d_end + "\n"
+		log += str(self.d_start) + " " + str(self.d_end) + "\n"
 		self.log_line = log
 		# self.max_score = score
 
