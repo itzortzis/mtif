@@ -470,12 +470,6 @@ class Training():
 
 class CV_Training(Training):
 
-	# def __init__(self, comps, params, paths):
-	# 	self.parameters = params
-	# 	self.components = comps
-	# 	self.paths = paths
-	# 	self.init()
-
 
 	def init(self):
 		super().init_components()
@@ -505,59 +499,9 @@ class CV_Training(Training):
 		self.cvm['fold_best_epoch'] = {}
 
 
-	# def init_components(self):
-	# 	self.model   = self.components['model']
-	# 	self.opt     = self.components['opt']
-	# 	self.loss_fn = self.components['loss_fn']
-	# 	self.dataset = self.components['dataset']
-
-
 	def init_parameters(self):
-		# self.thresh     = self.parameters['threshold']
-		# self.in_chnls   = self.parameters['in_channels']
-		# self.epochs     = self.parameters['epochs']
-		# self.dtst_name  = self.parameters['dtst_name']
-		# self.epoch_thr  = self.parameters['epoch_thresh']
-		# self.score_thr  = self.parameters['score_thresh']
-		# self.device     = self.parameters['device']
-		# self.batch_size = self.parameters['batch_size']
-		# self.clear_flag = self.parameters['clear_flag']
-		# self.d_start    = self.parameters['d_start']
-		# self.d_end      = self.parameters['d_end']
-		# self.inf_model  = self.parameters['inf_model_name']
 		super().init_parameters()
 		self.k          = self.parameters['k']
-
-	# def init_paths(self):
-	# 	self.trained_models = self.paths['trained_models']
-	# 	self.metrics = self.paths['metrics']
-	# 	self.figures = self.paths['figures']
-
-
-	# def clean_dataset(self):
-	# 	if not self.clear_flag:
-	# 		return
-	# 	print(self.dataset.shape)
-	# 	temp = np.zeros(self.dataset.shape)
-	# 	idx = 0
-	# 	for i in range(len(self.dataset)):
-	# 		if np.sum(self.dataset[i, :, :, 0]) < 10000:
-	# 			continue
-	# 		temp[idx, :, :, :] = self.dataset[i, :, :, :]
-	# 		idx += 1
-	# 	self.dataset = temp[:idx, :, :, :]
-	# 	print(self.dataset.shape)
-
-
-	# def normalize(self, s):
-	# 	max_ = np.max(s[:, :, :, 0])
-	# 	min_ = np.min(s[:, :, :, 0])
-	#
-	# 	for i in range(len(s)):
-	# 		s[i, :, :, 0] = (s[i, :, :, 0] - min_) / (max_ - min_)
-	# 		s[i, :, :, 1] = np.where(s[i, :, :, 1] > 0, 1, 0)
-	#
-	# 	return s
 
 
 	def normalize_sets(self):
@@ -580,31 +524,6 @@ class CV_Training(Training):
 
 		self.train_set = self.dataset[train_start: train_end, :, :, :]
 		self.test_set = self.dataset[test_start: test_end, :, :, :]
-
-
-	# def print_logo(self):
-	# 	print("""\
-    #                 *    *    * *
-    #      **  **     *        *
-    #     *  **  *   ***   *  ***
-    #     *      *    *    *   *
-    #     *      *    **   **  *
-    #                 """)
-
-
-	# def print_train_details(self):
-	# 	self.print_logo()
-	# 	print('You are about to train the model on ' + self.dtst_name)
-	# 	print('with the following details:')
-	# 	print('\t Training epochs: ', self.epochs)
-	# 	print('\t Epoch threshold: ', self.epoch_thr)
-	# 	print('\t Score threshold: ', self.score_thr)
-	# 	print('\t Trained models path: ', self.trained_models)
-	# 	print('\t Metrics path: ', self.metrics)
-	# 	print('\t Device: ', self.device)
-	# 	print()
-	# 	# option = input("Do you wish to continue? [Y/n]: ")
-	# 	return True or (option == 'Y' or option == 'y')
 
 
 	def cv_training_split(self, f_id, f_size):
@@ -703,22 +622,6 @@ class CV_Training(Training):
 		print()
 
 
-
-	# def update_log(self):
-	# 	self.log.write(self.log_line)
-	# 	self.log.close()
-
-
-	# Get_current_timestamp:
-	# ----------------------
-	# This function calculates the current timestamp that is
-	# used as unique id for saving the experimental details
-	# def get_current_timestamp(self):
-	# 	current_GMT = time.gmtime()
-	# 	self.timestamp = calendar.timegm(current_GMT)
-
-
-
 	def save_model_weights(self, epoch, score):
 
 		path_to_model = self.trained_models + self.dtst_name
@@ -731,95 +634,6 @@ class CV_Training(Training):
 		self.log_line = log
 		# self.max_score = score
 
-
-	# Prepare_data:
-	# -------------
-	# Given x and y tensors, this function applies some basic
-	# transformations/changes related to dimensions, data types,
-	# and device.
-	#
-	# --> x: tensor containing a batch of input images
-	# --> y: tensor containing a batch of annotation masks
-	# <-- x, y: the updated tensors
-	# def prepare_data(self, x, y):
-	# 	if self.in_chnls < 2:
-	# 		x = torch.unsqueeze(x, 1)
-	# 	else:
-	# 		x = x.movedim(2, -1)
-	# 		x = x.movedim(1, 2)
-	#
-	# 	x = x.to(torch.float32)
-	# 	y = y.to(torch.int64)
-	#
-	# 	x = x.to(self.device)
-	# 	y = y.to(self.device)
-	#
-	# 	return x, y
-
-
-	# Epoch_training:
-	# ---------------
-	# This function is used for implementing the training
-	# procedure during a single epoch.
-	#
-	# <-- epoch_score: performance score achieved during
-	#                  the training
-	# <-- epoch_loss: the loss function score achieved during
-	#                 the training
-	# def epoch_training(self):
-	# 	self.model.train(True)
-	# 	current_score = 0.0
-	# 	current_loss = 0.0
-	#
-	# 	step = 0
-	# 	for x, y in self.train_ldr:
-	# 		x, y = self.prepare_data(x, y)
-	# 		step += 1
-	# 		self.opt.zero_grad()
-	# 		outputs = self.model(x)
-	# 		loss = self.loss_fn(outputs, y)
-	# 		loss.backward()
-	# 		self.opt.step()
-	#
-	# 		score = self.calculate_dice(outputs, y)
-	# 		current_score += score * self.train_ldr.batch_size
-	# 		current_loss  += loss * self.train_ldr.batch_size
-	#
-	# 	epoch_score = current_score / len(self.train_ldr.dataset)
-	# 	epoch_loss  = current_loss / len(self.train_ldr.dataset)
-	#
-	# 	return epoch_score.item(), epoch_loss.item()
-
-
-	# Epoch_validation:
-	# ---------------
-	# This function is used for implementing the validation
-	# procedure during a single epoch.
-	#
-	# <-- epoch_score: performance score achieved during
-	#                  the validation
-	# <-- epoch_loss: the loss function score achieved during
-	#                 the validation
-	# def epoch_validation(self):
-	# 	self.model.train(False)
-	# 	current_score = 0.0
-	# 	current_loss = 0.0
-	#
-	# 	for x, y in self.valid_ldr:
-	# 		x, y = self.prepare_data(x, y)
-	#
-	# 		with torch.no_grad():
-	# 			outputs = self.model(x)
-	# 			loss = self.loss_fn(outputs, y)
-	#
-	# 		score = self.calculate_dice(outputs, y)
-	# 		current_score += score * self.train_ldr.batch_size
-	# 		current_loss  += loss * self.train_ldr.batch_size
-	#
-	# 	epoch_score = current_score / len(self.valid_ldr.dataset)
-	# 	epoch_loss  = current_loss / len(self.valid_ldr.dataset)
-	#
-	# 	return epoch_score.item(), epoch_loss.item()
 
 
 	# Inference:
@@ -846,68 +660,6 @@ class CV_Training(Training):
 		test_set_score = current_score / len(self.test_ldr.dataset)
 
 		return test_set_score.item()
-
-
-	# def ext_inference(self, set_ldr):
-	# 	path_to_model = self.trained_models + self.inf_model
-	# 	self.model.load_state_dict(torch.load(path_to_model))
-	# 	self.model.eval()
-	# 	current_score = 0.0
-	#
-	# 	for x, y in set_ldr:
-	# 		x, y = self.prepare_data(x, y)
-	#
-	# 		with torch.no_grad():
-	# 			outputs = self.model(x)
-	#
-	# 		score = self.calculate_dice(outputs, y)
-	# 		current_score += score * set_ldr.batch_size
-	#
-	# 	test_set_score = current_score / len(set_ldr.dataset)
-	#
-	# 	return test_set_score.item()
-
-
-	# detach_tensors:
-	# ---------------
-	# Given preds and targets tensors, this function
-	# def detach_tensors(self, preds, targets):
-	# 	preds = torch.argmax(preds, dim=1)
-	# 	preds = preds.cpu().detach().numpy()
-	# 	targets = targets.cpu().detach().numpy()
-	#
-	# 	return preds, targets
-
-
-	# def calculate_iou(self, preds, ys, smooth=1):
-	# 	preds, ys = self.detach_tensors(preds, ys)
-	# 	d = preds + ys
-	# 	m = 0
-	# 	for i in range(len(preds)):
-	# 		c = d[i, :, :]
-	# 		inter = np.count_nonzero(c > 1)
-	# 		union = np.count_nonzero(c > 0)
-	# 		m += (inter+smooth)/(union+smooth)
-	#
-	# 	return m/len(preds)
-	#
-	#
-	# def calculate_dice(self, preds, targets, smooth=1):
-	# 	preds = preds.cpu()
-	# 	targets = targets.cpu()
-	# 	preds = torch.argmax(preds, dim=1)
-	# 	preds = preds.view(-1)
-	# 	targets = targets.view(-1)
-	# 	dice = Dice(average='macro', num_classes=2)
-	# 	d = dice(preds, targets)
-	# 	return d
-	#
-	#
-	# def save_metrics(self):
-	# 	postfix = self.dtst_name + "_" + str(self.timestamp)
-	# 	np.save(self.metrics + "scores_" + postfix, self.scores)
-	# 	np.save(self.metrics + "losses_" + postfix, self.losses)
-	# 	self.save_figures()
 
 
 	def save_figures(self):
