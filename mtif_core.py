@@ -578,12 +578,7 @@ class CV_Training(Training):
 			for epoch in tqdm(range(self.epochs)):
 				tr_score, tr_loss = self.epoch_training()
 				vl_score, vl_loss = self.epoch_validation()
-
-				self.losses[cv_i, epoch, 0] = tr_loss
-				self.losses[cv_i, epoch, 1] = vl_loss
-				self.scores[cv_i, epoch, 0] = tr_score
-				self.scores[cv_i, epoch, 1] = vl_score
-
+				self.save_ls(tr_loss, vl_loss, tr_score, vl_score, epoch, cv_i)
 				self.print_scores(tr_score, tr_loss, vl_score, vl_loss)
 				self.keep_model_weights(epoch, vl_score, cv_i)
 
@@ -592,9 +587,16 @@ class CV_Training(Training):
 		self.exec_time = time.time() - start_time
 		print("Total execution time: ", self.exec_time, " seconds")
 		self.save_model_weights(self.cvm['best_model_epoch'], self.cvm['max_score'])
-		# self.log_line = str(self.test_set_score) + " " + self.log_line
 		self.save_metrics()
 		self.update_log()
+
+
+	def save_ls(self, tr_loss, vl_loss, tr_score, vl_score, epoch, cv_i):
+		print("Saving ls")
+		self.losses[cv_i, epoch, 0] = tr_loss
+		self.losses[cv_i, epoch, 1] = vl_loss
+		self.scores[cv_i, epoch, 0] = tr_score
+		self.scores[cv_i, epoch, 1] = vl_score
 
 
 	def save_best_model(self, test_set_score, cv_i):
