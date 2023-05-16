@@ -1,3 +1,4 @@
+import cv2
 import time
 import torch
 import calendar
@@ -105,7 +106,7 @@ class Training():
 	def normalize_sets(self):
 		self.train_set = self.normalize(self.train_set)
 		self.valid_set = self.normalize(self.valid_set)
-		self.set_set = self.normalize(self.test_set)
+		self.test_set = self.normalize(self.test_set)
 
 
 	def build_loaders(self):
@@ -333,12 +334,45 @@ class Training():
 		return test_set_score.item()
 
 
+	def clear_false_preds(self, pred, h, area_thresh = 200):
+		c = 0
+		area = 0
+		area_s = 0
+		area_e = 0
+		found = False
+
+		while c < pred.shape[1]:
+			if h:
+				col_count = np.count_nonzero(pred[:, c])
+			else:
+				col_count = np.count_nonzero(pred[c, :])
+			if col_count > 0:
+				if not found:
+					found = True
+					area_s = c
+				area += col_count
+			if col_count == 0:
+				if found:
+					found = False
+					area_e = c
+					if area < area_thresh and area_s != area_e:
+						if h:
+							pred[:, area_s:area_e] = 0
+						else:
+							pred[area_s:area_e, :] = 0
+						area_s = area_e = 0
+					area = 0
+			c += 1
+
+		return pred
+
+
 	def ext_inference(self, set_ldr):
 		path_to_model = self.trained_models + self.inf_model
 		self.model.load_state_dict(torch.load(path_to_model))
 		self.model.eval()
 		current_score = 0.0
-
+		i = 0
 		for x, y in set_ldr:
 			x, y = self.prepare_data(x, y)
 
@@ -347,6 +381,28 @@ class Training():
 
 			score = self.calculate_dice(outputs, y)
 			current_score += score * set_ldr.batch_size
+
+			img = x.cpu().detach().numpy()
+			preds = torch.argmax(outputs, dim=1)
+			ano = preds.cpu().detach().numpy()
+
+			ano = self.clear_false_preds(ano[2, :, :], False)
+			ano = self.clear_false_preds(ano, True)
+
+			print(img.shape, ano.shape, np.unique(ano))
+			plt.figure()
+			plt.imshow(img[2, 0, :, :], cmap='gray')
+			plt.imshow(ano[:, :], alpha=0.3)
+			plt.savefig("inf/img_"+str(i)+'.png')
+
+
+			ano = y.cpu().detach().numpy()
+			print(img.shape, ano.shape)
+			plt.figure()
+			plt.imshow(img[2, 0, :, :], cmap='gray')
+			plt.imshow(ano[2, :, :], alpha=0.3)
+			plt.savefig("inf/img_an_"+str(i)+'.png')
+			i += 1
 
 		test_set_score = current_score / len(set_ldr.dataset)
 
