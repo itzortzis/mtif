@@ -10,35 +10,35 @@ import torch.nn.functional as F
 from sklearn.cluster import KMeans
 from matplotlib import pyplot as plt
 
-# class Dataset(torch.utils.data.Dataset):
-# 	def __init__(self, d):
-# 		self.dtst = d
+class Dataset_g(torch.utils.data.Dataset):
+	def __init__(self, d):
+		self.dtst = d
 
-# 	def __len__(self):
-# 		return len(self.dtst)
+	def __len__(self):
+		return len(self.dtst)
 
-# 	def __getitem__(self, index):
-# 		obj = self.dtst[index, :, :, :]
-# 		e = np.where(obj[:, :, 0] < 0.3)
-# 		t = self.equalize_hist(obj, e)
+	def __getitem__(self, index):
+		obj = self.dtst[index, :, :, :]
+		e = np.where(obj[:, :, 0] < 0.3)
+		t = self.equalize_hist(obj, e)
 
-# 		x = torch.from_numpy(obj[:, :, 0])
-# 		y = torch.from_numpy(obj[:, :, 1])
+		x = torch.from_numpy(obj[:, :, 0])
+		y = torch.from_numpy(obj[:, :, 1])
 
-# 		return x, y
+		return x, y
 
-# 	def equalize_hist(self, obj, e):
-# 		t = exposure.equalize_hist(obj[:, :, 0])
-# 		t[e] = 0
+	def equalize_hist(self, obj, e):
+		t = exposure.equalize_hist(obj[:, :, 0])
+		t[e] = 0
 
-# 		return t
+		return t
 	
 
-class Dataset(torch.utils.data.Dataset):
-	def __init__(self, d, model, path_to_model):
+class Dataset_l(torch.utils.data.Dataset):
+	def __init__(self, d, model):
 		self.dtst = d
 		self.model = model
-		self.path_to_model = path_to_model
+		self.path_to_model = 'trained_models/PI-CAI_1683897041.pth'
 
 	def __len__(self):
 		return len(self.dtst)
@@ -96,12 +96,18 @@ class Dataset(torch.utils.data.Dataset):
 		y_lesion = y_lesion.detach().numpy()
 		x, y_gland, y_lesion = self.create_final_objs(x, y_gland, y_lesion, l, r, t, b)
 		x = exposure.equalize_hist(x)
+		e = np.where(y_lesion < 0.3)
+		a = np.where(y_lesion >= 0.3)
+		y_lesion[e] = 0
+		y_lesion[a] = 1
 
 		x = torch.from_numpy(x)
 		y_gland = torch.from_numpy(y_gland)
 		y_lesion = torch.from_numpy(y_lesion)
 		
-		return mri, x, y_gland, y_lesion
+		# return mri, x, y_gland, y_lesion
+		# print("X: ", x.size(), y_lesion.size())
+		return x, y_lesion
 
 
 	def create_final_objs(self, x, y_gland, y_lesion, l, r, t, b):
@@ -161,7 +167,11 @@ class Training():
 		# self.clean_dataset()
 		# self.split_dataset(self.d_start, self.d_end)
 		self.normalize_sets()
-		self.build_loaders()
+		if self.g_training:
+			self.build_g_loaders()
+		else:
+			print("Lesion_loader...")
+			self.build_l_loaders()
 		self.losses = np.zeros((self.epochs, 2))
 		self.scores = np.zeros((self.epochs, 2))
 		self.max_score = 0
@@ -176,6 +186,7 @@ class Training():
 
 	def init_components(self):
 		self.model     = self.components['model']
+		self.g_model   = self.components['g_model']
 		self.opt       = self.components['opt']
 		self.loss_fn   = self.components['loss_fn']
 		self.train_set = self.components['train']
@@ -196,6 +207,7 @@ class Training():
 		self.d_start    = self.parameters['d_start']
 		self.d_end      = self.parameters['d_end']
 		self.inf_model  = self.parameters['inf_model_name']
+		self.g_training = self.parameters['g_training']
 
 	def init_paths(self):
 		self.trained_models = self.paths['trained_models']
@@ -220,14 +232,26 @@ class Training():
 		self.test_set = self.normalize(self.test_set)
 
 
-	def build_loaders(self):
-		train_set      = Dataset(self.train_set)
+	def build_g_loaders(self):
+		train_set      = Dataset_g(self.train_set)
 		params         = {'batch_size': self.batch_size, 'shuffle': True}
 		self.train_ldr = torch.utils.data.DataLoader(train_set, **params)
-		valid_set      = Dataset(self.valid_set)
+		valid_set      = Dataset_g(self.valid_set)
 		params         = {'batch_size': self.batch_size, 'shuffle': False}
 		self.valid_ldr = torch.utils.data.DataLoader(valid_set, **params)
-		test_set       = Dataset(self.test_set)
+		test_set       = Dataset_g(self.test_set)
+		params         = {'batch_size': self.batch_size, 'shuffle': False}
+		self.test_ldr  = torch.utils.data.DataLoader(test_set, **params)
+
+	
+	def build_l_loaders(self):
+		train_set      = Dataset_l(self.train_set, self.g_model)
+		params         = {'batch_size': self.batch_size, 'shuffle': True}
+		self.train_ldr = torch.utils.data.DataLoader(train_set, **params)
+		valid_set      = Dataset_l(self.valid_set, self.g_model)
+		params         = {'batch_size': self.batch_size, 'shuffle': False}
+		self.valid_ldr = torch.utils.data.DataLoader(valid_set, **params)
+		test_set       = Dataset_l(self.test_set, self.g_model)
 		params         = {'batch_size': self.batch_size, 'shuffle': False}
 		self.test_ldr  = torch.utils.data.DataLoader(test_set, **params)
 
@@ -323,7 +347,8 @@ class Training():
 			path_to_model += "_" + str(self.timestamp) + ".pth"
 			torch.save(self.model.state_dict(), path_to_model)
 			self.model_dict = self.model.state_dict()
-			log = str(epoch) + " " + str(score) + " " + path_to_model + "\n"
+			log = str(self.g_training)
+			log += str(epoch) + " " + str(score) + " " + path_to_model + "\n"
 			self.log_line = log
 			self.max_score = score
 
@@ -368,14 +393,19 @@ class Training():
 		current_loss = 0.0
 
 		step = 0
+		print("Loader len:", len(self.train_ldr))
 		for x, y in self.train_ldr:
+			
 			x, y = self.prepare_data(x, y)
+			# print("Epoch training: ", x.size(), y.size())
 			step += 1
 			self.opt.zero_grad()
 			outputs = self.model(x)
+			# print("Outputs: ", outputs.size(), y.size())
 			loss = self.loss_fn(outputs, y)
 			loss.backward()
 			self.opt.step()
+			# print()
 
 			score = self.calculate_dice(outputs, y)
 			current_score += score * self.train_ldr.batch_size
@@ -549,7 +579,7 @@ class Training():
 		preds = torch.argmax(preds, dim=1)
 		preds = preds.view(-1)
 		targets = targets.view(-1)
-		dice = Dice(average='macro', num_classes=2)
+		dice = Dice(average='micro', num_classes=2)
 		d = dice(preds, targets)
 		return d
 
