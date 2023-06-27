@@ -10,22 +10,133 @@ import torch.nn.functional as F
 from sklearn.cluster import KMeans
 from matplotlib import pyplot as plt
 
+# class Dataset(torch.utils.data.Dataset):
+# 	def __init__(self, d):
+# 		self.dtst = d
+
+# 	def __len__(self):
+# 		return len(self.dtst)
+
+# 	def __getitem__(self, index):
+# 		obj = self.dtst[index, :, :, :]
+# 		e = np.where(obj[:, :, 0] < 0.3)
+# 		t = self.equalize_hist(obj, e)
+
+# 		x = torch.from_numpy(obj[:, :, 0])
+# 		y = torch.from_numpy(obj[:, :, 1])
+
+# 		return x, y
+
+# 	def equalize_hist(self, obj, e):
+# 		t = exposure.equalize_hist(obj[:, :, 0])
+# 		t[e] = 0
+
+# 		return t
+	
+
 class Dataset(torch.utils.data.Dataset):
-	def __init__(self, d):
+	def __init__(self, d, model, path_to_model):
 		self.dtst = d
+		self.model = model
+		self.path_to_model = path_to_model
 
 	def __len__(self):
 		return len(self.dtst)
 
-	def __getitem__(self, index):
+	def fetch_item(self, index):
 		obj = self.dtst[index, :, :, :]
-		e = np.where(obj[:, :, 0] < 0.3)
-		t = self.equalize_hist(obj, e)
+		temp = obj[:, :, 0]
+		norm = (temp - np.min(temp)) / (np.max(temp) - np.min(temp))
+		x = torch.from_numpy(norm)
+		y_gland = torch.from_numpy(obj[:, :, 1])
+		y_lesion = torch.from_numpy(obj[:, :, 2])
 
-		x = torch.from_numpy(obj[:, :, 0])
-		y = torch.from_numpy(obj[:, :, 1])
+		return x, y_gland, y_lesion
 
-		return x, y
+
+	def load_model(self):
+		path_to_model = self.path_to_model
+		self.model.load_state_dict(torch.load(path_to_model))
+		self.model.eval()
+
+
+	def prepare_input(self, x):
+		x = torch.unsqueeze(x, 0)
+		x = torch.unsqueeze(x, 0)
+		x = x.to(torch.float32)
+
+		return x
+
+
+	def init_cropping(self, x, y_gland, gland_preds):
+		x = torch.squeeze(x, 0)
+		x = torch.squeeze(x, 0)
+		outputs = torch.squeeze(gland_preds, 0)
+		x = x.detach().numpy()
+		y_gland = y_gland.detach().numpy()
+		gland_preds = outputs.detach().numpy()
+
+		return x, y_gland, gland_preds
+
+
+	def __getitem__(self, index):
+		
+		x, y_gland, y_lesion = self.fetch_item(index)
+		mri = x
+		self.load_model()
+		x = self.prepare_input(x)
+		
+		with torch.no_grad():
+			gland_pred = self.model(x)
+
+		gland_pred = torch.argmax(gland_pred, dim=1)
+		x, y_gland, gland_pred = self.init_cropping(x, y_gland, gland_pred)
+
+		c_gland_pred, (l, r, t, b) = self.crop_img(gland_pred)
+		y_lesion = y_lesion.detach().numpy()
+		x, y_gland, y_lesion = self.create_final_objs(x, y_gland, y_lesion, l, r, t, b)
+		x = exposure.equalize_hist(x)
+
+		x = torch.from_numpy(x)
+		y_gland = torch.from_numpy(y_gland)
+		y_lesion = torch.from_numpy(y_lesion)
+		
+		return mri, x, y_gland, y_lesion
+
+
+	def create_final_objs(self, x, y_gland, y_lesion, l, r, t, b):
+		x = x[t:b, l:r]
+		y_gland = y_gland.astype(float)
+		y_lesion = y_lesion.astype(float)
+		y_gland = y_gland[t:b, l:r]
+		y_lesion = y_lesion[t:b, l:r]
+		e = np.where(y_gland < 0.3)
+		y_gland[e] = 0
+		e = np.where(y_lesion < 0.3)
+		y_lesion[e] = 0
+		y_gland = cv2.resize(y_gland, (256, 256))
+		y_lesion = cv2.resize(y_lesion, (256, 256))
+		x = cv2.resize(x, (256, 256))
+
+		return x, y_gland, y_lesion
+
+	def crop_img(self, img):
+		t = 0
+		b = img.shape[0] - 1
+		l = 0
+		r = img.shape[1] - 1
+		while np.sum(img[t, :]) == 0 and t < img.shape[0] - 1: t += 1
+		while np.sum(img[b, :]) == 0 and b > 1: b -= 1
+		while np.sum(img[:, l]) == 0 and l < img.shape[1] - 1: l += 1
+		while np.sum(img[:, r]) == 0 and r > 1: r -= 1
+
+		if t < b and l < r:
+			crpd = img[t:b, l:r]
+			return crpd, (l, r, t, b)
+		else:
+			crpd = img
+			return crpd, (0, img.shape[1] - 1, 0, img.shape[0] - 1)
+
 
 	def equalize_hist(self, obj, e):
 		t = exposure.equalize_hist(obj[:, :, 0])
@@ -149,7 +260,6 @@ class Training():
 		print()
 		# option = input("Do you wish to continue? [Y/n]: ")
 		return True or (option == 'Y' or option == 'y')
-
 
 
 	# Main_training:
