@@ -1,5 +1,6 @@
 import cv2
 import time
+import math
 import torch
 import calendar
 import numpy as np
@@ -393,7 +394,7 @@ class Training():
 		current_loss = 0.0
 
 		step = 0
-		print("Loader len:", len(self.train_ldr))
+		# print("Loader len:", len(self.train_ldr))
 		for x, y in self.train_ldr:
 			
 			x, y = self.prepare_data(x, y)
@@ -408,11 +409,16 @@ class Training():
 			# print()
 
 			score = self.calculate_dice(outputs, y)
-			current_score += score * self.train_ldr.batch_size
-			current_loss  += loss * self.train_ldr.batch_size
+			# print("Score: ", score)
+			current_score += score# * self.train_ldr.batch_size
+			current_loss  += loss# * self.train_ldr.batch_size
 
-		epoch_score = current_score / len(self.train_ldr.dataset)
-		epoch_loss  = current_loss / len(self.train_ldr.dataset)
+		batches = len(self.train_ldr)
+		# print("Batches: ", batches)
+		epoch_score = current_score / batches#len(self.valid_ldr.dataset)
+		epoch_loss  = current_loss / batches#len(self.valid_ldr.dataset)
+		# epoch_score = current_score / len(self.train_ldr.dataset)
+		# epoch_loss  = current_loss / len(self.train_ldr.dataset)
 
 		return epoch_score.item(), epoch_loss.item()
 
@@ -427,11 +433,15 @@ class Training():
 	# <-- epoch_loss: the loss function score achieved during
 	#                 the validation
 	def epoch_validation(self):
-		self.model.train(False)
+		# self.model.train(False)
+		self.model.eval()
 		current_score = 0.0
 		current_loss = 0.0
-
+		elems = 0
 		for x, y in self.valid_ldr:
+			# print(x.size()[0])
+			elems += x.size()[0]
+			
 			x, y = self.prepare_data(x, y)
 
 			with torch.no_grad():
@@ -439,11 +449,14 @@ class Training():
 				loss = self.loss_fn(outputs, y)
 
 			score = self.calculate_dice(outputs, y)
-			current_score += score * self.train_ldr.batch_size
-			current_loss  += loss * self.train_ldr.batch_size
+			current_score += score# * self.valid_ldr.batch_size
+			current_loss  += loss# * self.valid_ldr.batch_size
 
-		epoch_score = current_score / len(self.valid_ldr.dataset)
-		epoch_loss  = current_loss / len(self.valid_ldr.dataset)
+		# print(self.valid_ldr.batch_size, len(self.valid_ldr.dataset))
+		# print(len(self.valid_ldr.dataset) / self.valid_ldr.batch_size)
+		batches = len(self.valid_ldr.dataset)
+		epoch_score = current_score / batches#len(self.valid_ldr.dataset)
+		epoch_loss  = current_loss / batches#len(self.valid_ldr.dataset)
 
 		return epoch_score.item(), epoch_loss.item()
 
@@ -579,7 +592,7 @@ class Training():
 		preds = torch.argmax(preds, dim=1)
 		preds = preds.view(-1)
 		targets = targets.view(-1)
-		dice = Dice(average='micro', num_classes=2)
+		dice = Dice(average='macro', num_classes=2)
 		d = dice(preds, targets)
 		return d
 
