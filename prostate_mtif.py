@@ -348,7 +348,7 @@ class Training():
 			path_to_model += "_" + str(self.timestamp) + ".pth"
 			torch.save(self.model.state_dict(), path_to_model)
 			self.model_dict = self.model.state_dict()
-			log = str(self.g_training)
+			log = str(self.g_training) + " "
 			log += str(epoch) + " " + str(score) + " " + path_to_model + "\n"
 			self.log_line = log
 			self.max_score = score
