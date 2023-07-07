@@ -167,7 +167,7 @@ class Training():
 		self.init_paths()
 		# self.clean_dataset()
 		# self.split_dataset(self.d_start, self.d_end)
-		self.normalize_sets()
+		# self.normalize_sets()
 		if self.g_training:
 			self.build_g_loaders()
 		else:
@@ -454,7 +454,7 @@ class Training():
 
 		# print(self.valid_ldr.batch_size, len(self.valid_ldr.dataset))
 		# print(len(self.valid_ldr.dataset) / self.valid_ldr.batch_size)
-		batches = len(self.valid_ldr.dataset)
+		batches = len(self.valid_ldr)
 		epoch_score = current_score / batches#len(self.valid_ldr.dataset)
 		epoch_loss  = current_loss / batches#len(self.valid_ldr.dataset)
 
