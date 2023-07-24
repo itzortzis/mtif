@@ -22,9 +22,13 @@ class Dataset_g(torch.utils.data.Dataset):
 		obj = self.dtst[index, :, :, :]
 		e = np.where(obj[:, :, 0] < 0.3)
 		t = self.equalize_hist(obj, e)
+		img = obj[:, :, 0]
+		mask = obj[:, :, 1]
+		img = np.rot90(img, k=3).copy()
+		mask = np.rot90(mask, k=3).copy()
 
-		x = torch.from_numpy(obj[:, :, 0])
-		y = torch.from_numpy(obj[:, :, 1])
+		x = torch.from_numpy(img)
+		y = torch.from_numpy(mask)
 
 		return x, y
 

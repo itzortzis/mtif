@@ -3,12 +3,17 @@ import time
 import torch
 import calendar
 import numpy as np
+import torch.nn as nn
 from tqdm import tqdm
 from skimage import exposure
 from torchmetrics import Dice
 import torch.nn.functional as F
+from torchmetrics import F1Score
 from sklearn.cluster import KMeans
 from matplotlib import pyplot as plt
+from torchmetrics.classification import BinaryF1Score
+
+
 
 
 class Dataset(torch.utils.data.Dataset):
@@ -24,11 +29,11 @@ class Dataset(torch.utils.data.Dataset):
 		t = self.equalize_hist(obj, e)
 		# t1 = t - obj[:, :, 0]
 
-		cl = self.apply_clustering(obj[:, :, 0], e, 5)
-		temp = np.zeros((obj.shape[0], obj.shape[0], 3))
+		# cl = self.apply_clustering(obj[:, :, 0], e, 5)
+		temp = np.zeros((obj.shape[0], obj.shape[0], 2))
 		temp[:, :, 0] = obj[:, :, 0]
-		temp[:, :, 1] = cl
-		temp[:, :, 2] = t
+		# temp[:, :, 1] = cl
+		temp[:, :, 1] = t
 		# x = torch.from_numpy(obj[:, :, 0])
 		x = torch.from_numpy(temp)
 		y = torch.from_numpy(obj[:, :, 1])
@@ -63,6 +68,7 @@ class Training():
 
 
 	def init(self):
+
 		self.init_components()
 		self.init_parameters()
 		self.init_paths()
@@ -214,6 +220,8 @@ class Training():
 		self.get_current_timestamp()
 		print("Training is starting...")
 		start_time = time.time()
+		self.metric = F1Score(average='micro', num_classes=2)
+		self.metric.to(self.device)
 		for epoch in tqdm(range(self.epochs)):
 
 			tr_score, tr_loss = self.epoch_training()
@@ -309,6 +317,7 @@ class Training():
 		self.model.train(True)
 		current_score = 0.0
 		current_loss = 0.0
+		self.metric.reset()
 
 		step = 0
 		for x, y in self.train_ldr:
@@ -319,12 +328,16 @@ class Training():
 			loss = self.loss_fn(outputs, y)
 			loss.backward()
 			self.opt.step()
-
-			score = self.calculate_dice(outputs, y)
-			current_score += score * self.train_ldr.batch_size
+			# print(outputs.size(), y.size())
+			# score = self.calculate_dice(outputs, y)
+			preds = torch.argmax(outputs, dim=1)
+			score = self.metric.update(preds, y)
+			# current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
-		epoch_score = current_score / len(self.train_ldr.dataset)
+		# epoch_score = current_score / len(self.train_ldr.dataset)
+		epoch_score = self.metric.compute()
+		self.metric.reset()
 		epoch_loss  = current_loss / len(self.train_ldr.dataset)
 
 		return epoch_score.item(), epoch_loss.item()
@@ -343,6 +356,7 @@ class Training():
 		self.model.train(False)
 		current_score = 0.0
 		current_loss = 0.0
+		self.metric.reset()
 
 		for x, y in self.valid_ldr:
 			x, y = self.prepare_data(x, y)
@@ -351,11 +365,14 @@ class Training():
 				outputs = self.model(x)
 				loss = self.loss_fn(outputs, y)
 
-			score = self.calculate_dice(outputs, y)
-			current_score += score * self.train_ldr.batch_size
+			# score = self.calculate_dice(outputs, y)
+			preds = torch.argmax(outputs, dim=1)
+			score = self.metric.update(preds, y)
+			# current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
-		epoch_score = current_score / len(self.valid_ldr.dataset)
+		# epoch_score = current_score / len(self.valid_ldr.dataset)
+		epoch_score = self.metric.compute()
 		epoch_loss  = current_loss / len(self.valid_ldr.dataset)
 
 		return epoch_score.item(), epoch_loss.item()
@@ -372,18 +389,21 @@ class Training():
 		self.model.eval()
 		current_score = 0.0
 		current_loss = 0.0
-
+		self.metric.reset()
 		for x, y in self.test_ldr:
 			x, y = self.prepare_data(x, y)
 
 			with torch.no_grad():
 				outputs = self.model(x)
 
-			score = self.calculate_dice(outputs, y)
-			current_score += score * self.test_ldr.batch_size
+			# score = self.calculate_dice(outputs, y)
+			preds = torch.argmax(outputs, dim=1)
+			score = self.metric.update(preds, y)
+			# current_score += score * self.test_ldr.batch_size
 
-		test_set_score = current_score / len(self.test_ldr.dataset)
-
+		# test_set_score = current_score / len(self.test_ldr.dataset)
+		test_set_score = self.metric.compute()
+		self.metric.reset()
 		return test_set_score.item()
 
 
@@ -392,18 +412,21 @@ class Training():
 		self.model.load_state_dict(torch.load(path_to_model))
 		self.model.eval()
 		current_score = 0.0
-
+		self.metric.reset()
 		for x, y in set_ldr:
 			x, y = self.prepare_data(x, y)
 
 			with torch.no_grad():
 				outputs = self.model(x)
 
-			score = self.calculate_dice(outputs, y)
-			current_score += score * set_ldr.batch_size
+			# score = self.calculate_dice(outputs, y)
+			preds = torch.argmax(outputs, dim=1)
+			self.metric.update(preds, y)
+			# current_score += score * set_ldr.batch_size
 
-		test_set_score = current_score / len(set_ldr.dataset)
-
+		# test_set_score = current_score / len(set_ldr.dataset)
+		test_set_score = self.metric.compute()
+		self.metric.reset()
 		return test_set_score.item()
 
 
@@ -484,11 +507,21 @@ class CV_Training(Training):
 		self.scores = np.zeros((self.k, self.epochs, 2))
 		self.log = open("logs.txt", "a")  # append mode
 
+		# self.clean_model = self.model.copy()
+		self.init_model_dict = self.model.state_dict()
 
 		if self.device == 'cuda':
 			print("Cuda available")
 			self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 			self.model = self.model.to(self.device)
+		
+		self.metric = F1Score(task="binary", num_classes=2)
+		self.metric.to(self.device)
+
+
+	# def weights_init(self.m):
+		# if isinstance(m, nn.Conv2d):
+			# torch.nn.init.xavier_uniform(m.weight.data)
 
 
 	def init_cv_models(self):
@@ -570,6 +603,7 @@ class CV_Training(Training):
 		fold_size = len(self.train_set) // self.k
 		self.cvm['max_score'] = 0
 		for cv_i in range(self.k):
+			self.model.load_state_dict(self.init_model_dict)
 			self.cv_training_split(cv_i, fold_size)
 			self.cv_build_loaders()
 			self.cvm['max_epoch_score'][cv_i] = 0
