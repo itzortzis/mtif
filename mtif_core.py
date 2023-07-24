@@ -430,41 +430,6 @@ class Training():
 		return test_set_score.item()
 
 
-	# detach_tensors:
-	# ---------------
-	# Given preds and targets tensors, this function
-	def detach_tensors(self, preds, targets):
-		preds = torch.argmax(preds, dim=1)
-		preds = preds.cpu().detach().numpy()
-		targets = targets.cpu().detach().numpy()
-
-		return preds, targets
-
-
-	def calculate_iou(self, preds, ys, smooth=1):
-		preds, ys = self.detach_tensors(preds, ys)
-		d = preds + ys
-		m = 0
-		for i in range(len(preds)):
-			c = d[i, :, :]
-			inter = np.count_nonzero(c > 1)
-			union = np.count_nonzero(c > 0)
-			m += (inter+smooth)/(union+smooth)
-
-		return m/len(preds)
-
-
-	def calculate_dice(self, preds, targets, smooth=1):
-		preds = preds.cpu()
-		targets = targets.cpu()
-		preds = torch.argmax(preds, dim=1)
-		preds = preds.view(-1)
-		targets = targets.view(-1)
-		dice = Dice(average='macro', num_classes=2)
-		d = dice(preds, targets)
-		return d
-
-
 	def save_metrics(self):
 		postfix = self.dtst_name + "_" + str(self.timestamp)
 		np.save(self.metrics + "scores_" + postfix, self.scores)
@@ -683,20 +648,23 @@ class CV_Training(Training):
 		self.model.eval()
 		current_score = 0.0
 		current_loss = 0.0
-
+		self.metric.reset()
 		for x, y in self.test_ldr:
 			x, y = self.prepare_data(x, y)
 
 			with torch.no_grad():
 				outputs = self.model(x)
 
-			score = self.calculate_dice(outputs, y)
-			current_score += score * self.test_ldr.batch_size
+			preds = torch.argmax(outputs, dim=1)
+			score = self.metric.update(preds, y)
+			# score = self.calculate_dice(outputs, y)
+			# current_score += score * self.test_ldr.batch_size
 
-		test_set_score = current_score / len(self.test_ldr.dataset)
+		test_set_score = self.metric.compute()
+		self.metric.reset()
+		# test_set_score = current_score / len(self.test_ldr.dataset)
 
 		return test_set_score.item()
-
 
 	def save_figures(self):
 		postfix = self.dtst_name + "_" + str(self.timestamp) + ".png"
