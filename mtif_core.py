@@ -328,14 +328,10 @@ class Training():
 			loss = self.loss_fn(outputs, y)
 			loss.backward()
 			self.opt.step()
-			# print(outputs.size(), y.size())
-			# score = self.calculate_dice(outputs, y)
 			preds = torch.argmax(outputs, dim=1)
 			score = self.metric.update(preds, y)
-			# current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
-		# epoch_score = current_score / len(self.train_ldr.dataset)
 		epoch_score = self.metric.compute()
 		self.metric.reset()
 		epoch_loss  = current_loss / len(self.train_ldr.dataset)
@@ -365,13 +361,10 @@ class Training():
 				outputs = self.model(x)
 				loss = self.loss_fn(outputs, y)
 
-			# score = self.calculate_dice(outputs, y)
 			preds = torch.argmax(outputs, dim=1)
 			score = self.metric.update(preds, y)
-			# current_score += score * self.train_ldr.batch_size
 			current_loss  += loss * self.train_ldr.batch_size
 
-		# epoch_score = current_score / len(self.valid_ldr.dataset)
 		epoch_score = self.metric.compute()
 		epoch_loss  = current_loss / len(self.valid_ldr.dataset)
 
@@ -396,12 +389,9 @@ class Training():
 			with torch.no_grad():
 				outputs = self.model(x)
 
-			# score = self.calculate_dice(outputs, y)
 			preds = torch.argmax(outputs, dim=1)
 			score = self.metric.update(preds, y)
-			# current_score += score * self.test_ldr.batch_size
 
-		# test_set_score = current_score / len(self.test_ldr.dataset)
 		test_set_score = self.metric.compute()
 		self.metric.reset()
 		return test_set_score.item()
@@ -419,12 +409,9 @@ class Training():
 			with torch.no_grad():
 				outputs = self.model(x)
 
-			# score = self.calculate_dice(outputs, y)
 			preds = torch.argmax(outputs, dim=1)
 			self.metric.update(preds, y)
-			# current_score += score * set_ldr.batch_size
 
-		# test_set_score = current_score / len(set_ldr.dataset)
 		test_set_score = self.metric.compute()
 		self.metric.reset()
 		return test_set_score.item()
@@ -471,8 +458,6 @@ class CV_Training(Training):
 		self.losses = np.zeros((self.k, self.epochs, 2))
 		self.scores = np.zeros((self.k, self.epochs, 2))
 		self.log = open("logs.txt", "a")  # append mode
-
-		# self.clean_model = self.model.copy()
 		self.init_model_dict = self.model.state_dict()
 
 		if self.device == 'cuda':
@@ -482,11 +467,6 @@ class CV_Training(Training):
 		
 		self.metric = F1Score(task="binary", num_classes=2)
 		self.metric.to(self.device)
-
-
-	# def weights_init(self.m):
-		# if isinstance(m, nn.Conv2d):
-			# torch.nn.init.xavier_uniform(m.weight.data)
 
 
 	def init_cv_models(self):
@@ -657,14 +637,12 @@ class CV_Training(Training):
 
 			preds = torch.argmax(outputs, dim=1)
 			score = self.metric.update(preds, y)
-			# score = self.calculate_dice(outputs, y)
-			# current_score += score * self.test_ldr.batch_size
 
 		test_set_score = self.metric.compute()
 		self.metric.reset()
-		# test_set_score = current_score / len(self.test_ldr.dataset)
 
 		return test_set_score.item()
+
 
 	def save_figures(self):
 		postfix = self.dtst_name + "_" + str(self.timestamp) + ".png"
