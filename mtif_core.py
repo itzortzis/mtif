@@ -467,7 +467,7 @@ class CV_Training(Training):
 		
 		self.metric = F1Score(task="binary", num_classes=2)
 		self.metric.to(self.device)
-		self.p_bar = tqdm(range(self.epochs))
+		
 
 
 	def init_cv_models(self):
@@ -555,13 +555,13 @@ class CV_Training(Training):
 			self.cvm['max_epoch_score'][cv_i] = 0
 			print()
 			print("Training using ", str(cv_i), " fold for validation.")
-			
-			for epoch in self.p_bar:
+			p_bar = tqdm(range(self.epochs), colour='green')
+			for epoch in p_bar:
 				tr_score, tr_loss = self.epoch_training()
 				vl_score, vl_loss = self.epoch_validation()
 				self.save_ls(tr_loss, vl_loss, tr_score, vl_score, epoch, cv_i)
 				s = self.results_to_str(tr_score, tr_loss, vl_score, vl_loss)
-				self.p_bar.set_description(s)
+				p_bar.set_description(s)
 				self.keep_model_weights(epoch, vl_score, cv_i)
 
 			test_set_score = self.inference(cv_i)
@@ -611,6 +611,8 @@ class CV_Training(Training):
 		s += ", TRL: " + str(round(tr_loss, 3)) 
 		s += ", VLS: " + str(round(vl_score, 3)) 
 		s += ", VLL: " + str(round(vl_loss,3))
+
+		return s
 
 
 	def save_model_weights(self, epoch, score):
