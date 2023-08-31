@@ -467,6 +467,7 @@ class CV_Training(Training):
 		
 		self.metric = F1Score(task="binary", num_classes=2)
 		self.metric.to(self.device)
+		self.p_bar = tqdm(range(self.epochs))
 
 
 	def init_cv_models(self):
@@ -554,11 +555,13 @@ class CV_Training(Training):
 			self.cvm['max_epoch_score'][cv_i] = 0
 			print()
 			print("Training using ", str(cv_i), " fold for validation.")
-			for epoch in tqdm(range(self.epochs)):
+			
+			for epoch in self.p_bar:
 				tr_score, tr_loss = self.epoch_training()
 				vl_score, vl_loss = self.epoch_validation()
 				self.save_ls(tr_loss, vl_loss, tr_score, vl_score, epoch, cv_i)
-				self.print_scores(tr_score, tr_loss, vl_score, vl_loss)
+				s = self.results_to_str(tr_score, tr_loss, vl_score, vl_loss)
+				self.p_bar.set_description(s)
 				self.keep_model_weights(epoch, vl_score, cv_i)
 
 			test_set_score = self.inference(cv_i)
@@ -571,7 +574,7 @@ class CV_Training(Training):
 
 
 	def save_ls(self, tr_loss, vl_loss, tr_score, vl_score, epoch, cv_i):
-		print("Saving ls")
+		# print("Saving ls")
 		self.losses[cv_i, epoch, 0] = tr_loss
 		self.losses[cv_i, epoch, 1] = vl_loss
 		self.scores[cv_i, epoch, 0] = tr_score
@@ -601,6 +604,13 @@ class CV_Training(Training):
 		print("\t Training - Score: ", tr_score, " Loss: ", tr_loss)
 		print("\t Validation: - Score: ", vl_score, " Loss: ", vl_loss)
 		print()
+
+	
+	def results_to_str(self, tr_score, tr_loss, vl_score, vl_loss):
+		s = "TRS: " + str(round(tr_score, 3)) 
+		s += ", TRL: " + str(round(tr_loss, 3)) 
+		s += ", VLS: " + str(round(vl_score, 3)) 
+		s += ", VLL: " + str(round(vl_loss,3))
 
 
 	def save_model_weights(self, epoch, score):
