@@ -90,6 +90,7 @@ class Training():
 
 	def init_components(self):
 		self.model     = self.components['model']
+		self.t_model   = self.components['t_model']
 		self.opt       = self.components['opt']
 		self.loss_fn   = self.components['loss_fn']
 		self.dataset = self.components['dataset']
@@ -108,6 +109,9 @@ class Training():
 		self.d_start    = self.parameters['d_start']
 		self.d_end      = self.parameters['d_end']
 		self.inf_model  = self.parameters['inf_model_name']
+		self.t_model_w  = self.parameters['t_model_name']
+		self.alpha      = self.parameters['alpha']
+		self.ts         = self.parameters['ts']
 
 	def init_paths(self):
 		self.trained_models = self.paths['trained_models']
@@ -223,7 +227,6 @@ class Training():
 		self.metric = F1Score(average='micro', num_classes=2)
 		self.metric.to(self.device)
 		for epoch in tqdm(range(self.epochs)):
-
 			tr_score, tr_loss = self.epoch_training()
 			vl_score, vl_loss = self.epoch_validation()
 
@@ -302,7 +305,7 @@ class Training():
 		y = y.to(self.device)
 
 		return x, y
-
+		
 
 	# Epoch_training:
 	# ---------------
@@ -326,6 +329,39 @@ class Training():
 			self.opt.zero_grad()
 			outputs = self.model(x)
 			loss = self.loss_fn(outputs, y)
+			loss.backward()
+			self.opt.step()
+			preds = torch.argmax(outputs, dim=1)
+			score = self.metric.update(preds, y)
+			current_loss  += loss * self.train_ldr.batch_size
+
+		epoch_score = self.metric.compute()
+		self.metric.reset()
+		epoch_loss  = current_loss / len(self.train_ldr.dataset)
+
+		return epoch_score.item(), epoch_loss.item()
+
+	
+	def enhanced_epoch_training(self):
+		
+		self.model.train(True)
+		current_score = 0.0
+		current_loss = 0.0
+		self.metric.reset()
+		self.load_teacher_model()
+
+		step = 0
+		for x, y in self.train_ldr:
+			x, y = self.prepare_data(x, y)
+			step += 1
+			self.opt.zero_grad()
+			with torch.no_grad():
+				t_outputs = self.t_model(x)
+			outputs = self.model(x)
+			s_loss = self.loss_fn(outputs, y)
+			t_loss = self.loss_fn(t_outputs, y)
+			loss = self.alpha * s_loss + (1 - self.alpha) * t_loss
+			# print(s_loss, t_loss, loss)
 			loss.backward()
 			self.opt.step()
 			preds = torch.argmax(outputs, dim=1)
@@ -416,6 +452,11 @@ class Training():
 		self.metric.reset()
 		return test_set_score.item()
 
+
+	def load_teacher_model(self):
+		path_to_model = self.trained_models + self.t_model_w
+		self.t_model.load_state_dict(torch.load(path_to_model))
+		self.t_model.eval()
 
 	def save_metrics(self):
 		postfix = self.dtst_name + "_" + str(self.timestamp)
@@ -557,7 +598,13 @@ class CV_Training(Training):
 			print("Training using ", str(cv_i), " fold for validation.")
 			p_bar = tqdm(range(self.epochs), colour='green')
 			for epoch in p_bar:
-				tr_score, tr_loss = self.epoch_training()
+				if self.ts:
+					# print("Enhanced training: Teacher - Student model")
+					tr_score, tr_loss = self.enhanced_epoch_training()
+				else:
+					# print("Simple training: Teacher - Student model")
+					tr_score, tr_loss = self.epoch_training()
+				# tr_score, tr_loss = self.epoch_training()
 				vl_score, vl_loss = self.epoch_validation()
 				self.save_ls(tr_loss, vl_loss, tr_score, vl_score, epoch, cv_i)
 				s = self.results_to_str(tr_score, tr_loss, vl_score, vl_loss)
