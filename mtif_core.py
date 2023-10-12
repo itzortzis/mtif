@@ -37,6 +37,7 @@ class Dataset(torch.utils.data.Dataset):
 		# x = torch.from_numpy(obj[:, :, 0])
 		x = torch.from_numpy(temp)
 		y = torch.from_numpy(obj[:, :, 1])
+		# print(np.unique(obj[:, :, 1]))
 
 		return x, y
 
@@ -86,6 +87,7 @@ class Training():
 			print("Cuda available")
 			self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 			self.model = self.model.to(self.device)
+			self.t_model = self.t_model.to(self.device)
 
 
 	def init_components(self):
@@ -227,7 +229,13 @@ class Training():
 		self.metric = F1Score(average='micro', num_classes=2)
 		self.metric.to(self.device)
 		for epoch in tqdm(range(self.epochs)):
-			tr_score, tr_loss = self.epoch_training()
+			if self.ts:
+					# print("Enhanced training: Teacher - Student model")
+				tr_score, tr_loss = self.enhanced_epoch_training()
+			else:
+				# print("Simple training: Teacher - Student model")
+				tr_score, tr_loss = self.epoch_training()
+			# tr_score, tr_loss = self.epoch_training()
 			vl_score, vl_loss = self.epoch_validation()
 
 			self.losses[epoch, 0] = tr_loss
@@ -328,7 +336,9 @@ class Training():
 			step += 1
 			self.opt.zero_grad()
 			outputs = self.model(x)
+			# print(y, outputs)
 			loss = self.loss_fn(outputs, y)
+			print("Simple training loss: ", loss)
 			loss.backward()
 			self.opt.step()
 			preds = torch.argmax(outputs, dim=1)
@@ -342,6 +352,15 @@ class Training():
 		return epoch_score.item(), epoch_loss.item()
 
 	
+	# Enhanced_epoch_training:
+	# ---------------
+	# This function is used for implementing the enhanced training
+	# (teacher - student approach) procedure during a single epoch.
+	#
+	# <-- epoch_score: performance score achieved during
+	#                  the training
+	# <-- epoch_loss: the loss function score achieved during
+	#                 the training
 	def enhanced_epoch_training(self):
 		
 		self.model.train(True)
@@ -349,6 +368,7 @@ class Training():
 		current_loss = 0.0
 		self.metric.reset()
 		self.load_teacher_model()
+		# self.t_model.train(True)
 
 		step = 0
 		for x, y in self.train_ldr:
@@ -359,9 +379,11 @@ class Training():
 				t_outputs = self.t_model(x)
 			outputs = self.model(x)
 			s_loss = self.loss_fn(outputs, y)
-			t_loss = self.loss_fn(t_outputs, y)
+			# print("Enhanced s_loss: ", s_loss)
+			t_loss = self.loss_fn(outputs, t_outputs.softmax(dim=1))
+			# print("Enhanced t_loss: ", t_loss)
 			loss = self.alpha * s_loss + (1 - self.alpha) * t_loss
-			# print(s_loss, t_loss, loss)
+			# print(loss, t_loss, s_loss)
 			loss.backward()
 			self.opt.step()
 			preds = torch.argmax(outputs, dim=1)
@@ -505,6 +527,7 @@ class CV_Training(Training):
 			print("Cuda available")
 			self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 			self.model = self.model.to(self.device)
+			self.t_model = self.t_model.to(self.device)
 		
 		self.metric = F1Score(task="binary", num_classes=2)
 		self.metric.to(self.device)
