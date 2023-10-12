@@ -338,7 +338,7 @@ class Training():
 			outputs = self.model(x)
 			# print(y, outputs)
 			loss = self.loss_fn(outputs, y)
-			print("Simple training loss: ", loss)
+			# print("Simple training loss: ", loss)
 			loss.backward()
 			self.opt.step()
 			preds = torch.argmax(outputs, dim=1)
@@ -364,6 +364,7 @@ class Training():
 	def enhanced_epoch_training(self):
 		
 		self.model.train(True)
+		self.t_model.train(False)
 		current_score = 0.0
 		current_loss = 0.0
 		self.metric.reset()
@@ -408,6 +409,7 @@ class Training():
 	#                 the validation
 	def epoch_validation(self):
 		self.model.train(False)
+		self.t_model.train(False)
 		current_score = 0.0
 		current_loss = 0.0
 		self.metric.reset()
