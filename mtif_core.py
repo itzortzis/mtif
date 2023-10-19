@@ -616,6 +616,8 @@ class CV_Training(Training):
 		self.cvm['max_score'] = 0
 		for cv_i in range(self.k):
 			self.model.load_state_dict(self.init_model_dict)
+			self.cvm['model_dicts'][cv_i] = self.model.state_dict()
+			self.loss_fn = torch.nn.CrossEntropyLoss()
 			self.cv_training_split(cv_i, fold_size)
 			self.cv_build_loaders()
 			self.cvm['max_epoch_score'][cv_i] = 0
@@ -664,11 +666,14 @@ class CV_Training(Training):
 
 
 	def keep_model_weights(self, epoch, score, cv_i):
-
+		
 		if score > self.cvm['max_epoch_score'][cv_i] and epoch > self.epoch_thr:
+			# print("Keep model weights")
 			self.cvm['fold_best_epoch'][cv_i] = epoch
 			self.cvm['max_epoch_score'][cv_i] = score
 			self.cvm['model_dicts'][cv_i] = self.model.state_dict()
+		# else:
+		# 	print("Keep: ", score, self.cvm['max_epoch_score'][cv_i], epoch, self.epoch_thr)
 
 
 	def print_scores(self, tr_score, tr_loss, vl_score, vl_loss):
