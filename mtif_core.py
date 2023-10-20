@@ -572,11 +572,15 @@ class CV_Training(Training):
 
 
 	def cv_training_split(self, f_id, f_size):
+		if self.k == 1:
+			f_size = int(0.2 * len(self.train_set))
+		# print(f_id, f_size)
 		valid_fold_start = f_id * f_size
 		valid_fold_end = valid_fold_start + f_size
 		valid_fold = np.zeros((f_size, 256, 256, 2))
 		valid_fold = self.train_set[valid_fold_start: valid_fold_end, :, :, :]
 		train_fold = np.zeros((len(self.train_set) - f_size, 256, 256, 2))
+		# print(self.train_set.shape)
 
 		pre_end =  valid_fold_start
 		post_start = valid_fold_end
@@ -588,6 +592,7 @@ class CV_Training(Training):
 
 
 	def cv_build_loaders(self):
+		# print(self.train_fold.shape)
 		train_set      = Dataset(self.train_fold)
 		params         = {'batch_size': self.batch_size, 'shuffle': True}
 		self.train_ldr = torch.utils.data.DataLoader(train_set, **params)
@@ -697,7 +702,8 @@ class CV_Training(Training):
 		path_to_model = self.trained_models + self.dtst_name
 		path_to_model += "_" + str(self.timestamp) + ".pth"
 		torch.save(self.cvm['best_model'], path_to_model)
-		log = str(self.cvm['best_model_epoch']) + " "
+		log = str(self.k) + " " + str(self.ts) + " "
+		log += str(self.cvm['best_model_epoch']) + " "
 		log += str(self.cvm['max_score'])
 		log += " " + path_to_model + " "
 		log += str(self.d_start) + " " + str(self.d_end) + "\n"
