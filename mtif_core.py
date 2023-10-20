@@ -25,17 +25,15 @@ class Dataset(torch.utils.data.Dataset):
 
 	def __getitem__(self, index):
 		obj = self.dtst[index, :, :, :]
-		e = np.where(obj[:, :, 0] < 0.3)
-		t = self.equalize_hist(obj, e)
-		# t1 = t - obj[:, :, 0]
+		# e = np.where(obj[:, :, 0] < 0.3)
+		# t = self.equalize_hist(obj, e)
 
 		# cl = self.apply_clustering(obj[:, :, 0], e, 5)
-		temp = np.zeros((obj.shape[0], obj.shape[0], 2))
-		temp[:, :, 0] = obj[:, :, 0]
-		# temp[:, :, 1] = cl
-		temp[:, :, 1] = t
-		# x = torch.from_numpy(obj[:, :, 0])
-		x = torch.from_numpy(temp)
+		# temp = np.zeros((obj.shape[0], obj.shape[0], 2))
+		# temp[:, :, 0] = obj[:, :, 0]
+		# temp[:, :, 1] = t
+		x = torch.from_numpy(obj[:, :, 0])
+		# x = torch.from_numpy(temp)
 		y = torch.from_numpy(obj[:, :, 1])
 		# print(np.unique(obj[:, :, 1]))
 
@@ -114,6 +112,8 @@ class Training():
 		self.t_model_w  = self.parameters['t_model_name']
 		self.alpha      = self.parameters['alpha']
 		self.ts         = self.parameters['ts']
+		# if self.ts:
+		# 	print("xaxaxa")
 
 	def init_paths(self):
 		self.trained_models = self.paths['trained_models']
@@ -724,6 +724,7 @@ class CV_Training(Training):
 		current_score = 0.0
 		current_loss = 0.0
 		self.metric.reset()
+		idx = 0
 		for x, y in self.test_ldr:
 			x, y = self.prepare_data(x, y)
 
@@ -731,14 +732,28 @@ class CV_Training(Training):
 				outputs = self.model(x)
 
 			preds = torch.argmax(outputs, dim=1)
+			# print(preds.size())
 			score = self.metric.update(preds, y)
+			# self.save_sample_preds(x, preds, y, idx)
+			idx += 1
 
 		test_set_score = self.metric.compute()
 		self.metric.reset()
 
 		return test_set_score.item()
 
+	def save_sample_preds(self, x, preds, y, name):
+		x = x.cpu().detach().numpy()
+		preds = preds.cpu().detach().numpy()
+		y = y.cpu().detach().numpy()
+		f, axarr = plt.subplots(1, 3)
+		axarr[0].imshow(x[0, 0, :, :])
+		axarr[1].imshow(preds[0, :, :])
+		axarr[2].imshow(y[0, :, :])
+		plt.savefig(str(name) + ".png")
+		plt.close()
 
+     
 	def save_figures(self):
 		postfix = self.dtst_name + "_" + str(self.timestamp) + ".png"
 		plt.figure()
