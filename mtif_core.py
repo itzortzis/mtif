@@ -17,44 +17,32 @@ from torchmetrics.classification import BinaryF1Score
 
 
 class Dataset(torch.utils.data.Dataset):
-	def __init__(self, d):
+	def __init__(self, d, in_chnls, ts):
 		self.dtst = d
+		self.in_chnls = in_chnls
+		self.ts = ts
 
 	def __len__(self):
 		return len(self.dtst)
 
 	def __getitem__(self, index):
 		obj = self.dtst[index, :, :, :]
-		# e = np.where(obj[:, :, 0] < 0.3)
-		# t = self.equalize_hist(obj, e)
-
-		# cl = self.apply_clustering(obj[:, :, 0], e, 5)
-		# temp = np.zeros((obj.shape[0], obj.shape[0], 2))
-		# temp[:, :, 0] = obj[:, :, 0]
-		# temp[:, :, 1] = t
-		x = torch.from_numpy(obj[:, :, 0])
-		# x = torch.from_numpy(temp)
-		y = torch.from_numpy(obj[:, :, 1])
-		# print(np.unique(obj[:, :, 1]))
-
-		return x, y
-
-
-	def equalize_hist(self, obj, e):
-		t = exposure.equalize_hist(obj[:, :, 0])
-		t[e] = 0
-
-		return t
-
-	def apply_clustering(self, img, e, clusters):
-		flatImg=np.reshape(img, [-1, 1])
-		kmeans = KMeans(n_clusters=clusters, random_state=0, n_init="auto").fit(flatImg)
-		labels = kmeans.labels_
-		clusteredImg = np.reshape(labels, img.shape)
-		clusteredImg += 1
-		clusteredImg[e] = 0
-
-		return clusteredImg
+		
+		if self.ts == 1:
+			x = torch.from_numpy(obj[:, :, :self.in_chnls-1])
+			x_ = x
+			y = torch.from_numpy(obj[:, :, self.in_chnls-1])
+		elif self.ts == 2:
+			x = torch.from_numpy(obj[:, :, 0])
+			x_ = x
+			y = torch.from_numpy(obj[:, :, self.in_chnls-1])
+		else:
+			x = torch.from_numpy(obj[:, :, 0])
+			x_ = torch.from_numpy(obj[:, :, :self.in_chnls-1])
+			y = torch.from_numpy(obj[:, :, self.in_chnls-1])
+		
+		
+		return x, x_, y
 
 
 class Training():
@@ -175,13 +163,13 @@ class Training():
 
 
 	def build_loaders(self):
-		train_set      = Dataset(self.train_set)
+		train_set      = Dataset(self.train_set, self.in_chnls, self.ts)
 		params         = {'batch_size': self.batch_size, 'shuffle': True}
 		self.train_ldr = torch.utils.data.DataLoader(train_set, **params)
-		valid_set      = Dataset(self.valid_set)
+		valid_set      = Dataset(self.valid_set, self.in_chnls, self.ts)
 		params         = {'batch_size': self.batch_size, 'shuffle': False}
 		self.valid_ldr = torch.utils.data.DataLoader(valid_set, **params)
-		test_set       = Dataset(self.test_set)
+		test_set       = Dataset(self.test_set, self.in_chnls, self.ts)
 		params         = {'batch_size': self.batch_size, 'shuffle': False}
 		self.test_ldr  = torch.utils.data.DataLoader(test_set, **params)
 
@@ -229,7 +217,7 @@ class Training():
 		self.metric = F1Score(average='micro', num_classes=2)
 		self.metric.to(self.device)
 		for epoch in tqdm(range(self.epochs)):
-			if self.ts:
+			if self.ts == 3:
 					# print("Enhanced training: Teacher - Student model")
 				tr_score, tr_loss = self.enhanced_epoch_training()
 			else:
@@ -299,20 +287,32 @@ class Training():
 	# --> x: tensor containing a batch of input images
 	# --> y: tensor containing a batch of annotation masks
 	# <-- x, y: the updated tensors
-	def prepare_data(self, x, y):
-		if self.in_chnls < 2:
+	def prepare_data(self, x, x_, y):
+		# print('This is x size: ', x.size())
+		# print('This is x_ size: ', x_.size())
+		if len(x.size()) < 4:
 			x = torch.unsqueeze(x, 1)
 		else:
 			x = x.movedim(2, -1)
 			x = x.movedim(1, 2)
+		
+		if len(x_.size()) < 4:
+			x_ = torch.unsqueeze(x_, 1)
+		else:
+			x_ = x_.movedim(2, -1)
+			x_ = x_.movedim(1, 2)
 
+		# print('This is x size: ', x.size())
+		# print('This is x_ size: ', x_.size())
 		x = x.to(torch.float32)
+		x_ = x_.to(torch.float32)
 		y = y.to(torch.int64)
 
 		x = x.to(self.device)
+		x_ = x_.to(self.device)
 		y = y.to(self.device)
 
-		return x, y
+		return x, x_, y
 		
 
 	# Epoch_training:
@@ -329,10 +329,11 @@ class Training():
 		current_score = 0.0
 		current_loss = 0.0
 		self.metric.reset()
+		# print("Simple epoch training...")
 
 		step = 0
-		for x, y in self.train_ldr:
-			x, y = self.prepare_data(x, y)
+		for x, x_, y in self.train_ldr:
+			x, x_, y = self.prepare_data(x, x_, y)
 			step += 1
 			self.opt.zero_grad()
 			outputs = self.model(x)
@@ -371,13 +372,14 @@ class Training():
 		self.load_teacher_model()
 		# self.t_model.train(True)
 
+		# print("Enhanced epoch training...")
 		step = 0
-		for x, y in self.train_ldr:
-			x, y = self.prepare_data(x, y)
+		for x, x_, y in self.train_ldr:
+			x, x_, y = self.prepare_data(x, x_, y)
 			step += 1
 			self.opt.zero_grad()
 			with torch.no_grad():
-				t_outputs = self.t_model(x)
+				t_outputs = self.t_model(x_)
 			outputs = self.model(x)
 			s_loss = self.loss_fn(outputs, y)
 			# print("Enhanced s_loss: ", s_loss)
@@ -414,8 +416,8 @@ class Training():
 		current_loss = 0.0
 		self.metric.reset()
 
-		for x, y in self.valid_ldr:
-			x, y = self.prepare_data(x, y)
+		for x, x_, y in self.valid_ldr:
+			x, x_, y = self.prepare_data(x, x_, y)
 
 			with torch.no_grad():
 				outputs = self.model(x)
@@ -443,8 +445,8 @@ class Training():
 		current_score = 0.0
 		current_loss = 0.0
 		self.metric.reset()
-		for x, y in self.test_ldr:
-			x, y = self.prepare_data(x, y)
+		for x, x_, y in self.test_ldr:
+			x, x_, y = self.prepare_data(x, x_, y)
 
 			with torch.no_grad():
 				outputs = self.model(x)
@@ -463,8 +465,8 @@ class Training():
 		self.model.eval()
 		current_score = 0.0
 		self.metric.reset()
-		for x, y in set_ldr:
-			x, y = self.prepare_data(x, y)
+		for x, x_, y in set_ldr:
+			x, x_, y = self.prepare_data(x, x_, y)
 
 			with torch.no_grad():
 				outputs = self.model(x)
@@ -518,7 +520,7 @@ class CV_Training(Training):
 		self.init_cv_models()
 		super().clean_dataset()
 		self.split_dataset(self.d_start, self.d_end)
-		self.normalize_sets()
+		# self.normalize_sets()
 		self.build_test_loader()
 		self.losses = np.zeros((self.k, self.epochs, 2))
 		self.scores = np.zeros((self.k, self.epochs, 2))
@@ -556,8 +558,8 @@ class CV_Training(Training):
 
 	def split_dataset(self, d_start, d_end):
 		self.dataset = self.dataset[d_start: d_end]
-		rp = np.random.permutation(self.dataset.shape[0])
-		self.dataset = self.dataset[rp]
+		# rp = np.random.permutation(self.dataset.shape[0])
+		# self.dataset = self.dataset[rp]
 
 		train_set_size = int(0.8 * len(self.dataset))
 		test_set_size = int(0.2 * len(self.dataset))
@@ -577,9 +579,9 @@ class CV_Training(Training):
 		# print(f_id, f_size)
 		valid_fold_start = f_id * f_size
 		valid_fold_end = valid_fold_start + f_size
-		valid_fold = np.zeros((f_size, 256, 256, 2))
+		valid_fold = np.zeros((f_size, 256, 256, self.train_set.shape[3]))
 		valid_fold = self.train_set[valid_fold_start: valid_fold_end, :, :, :]
-		train_fold = np.zeros((len(self.train_set) - f_size, 256, 256, 2))
+		train_fold = np.zeros((len(self.train_set) - f_size, 256, 256, self.train_set.shape[3]))
 		# print(self.train_set.shape)
 
 		pre_end =  valid_fold_start
@@ -593,16 +595,16 @@ class CV_Training(Training):
 
 	def cv_build_loaders(self):
 		# print(self.train_fold.shape)
-		train_set      = Dataset(self.train_fold)
+		train_set      = Dataset(self.train_fold, self.in_chnls, self.ts)
 		params         = {'batch_size': self.batch_size, 'shuffle': True}
 		self.train_ldr = torch.utils.data.DataLoader(train_set, **params)
-		valid_set      = Dataset(self.valid_fold)
+		valid_set      = Dataset(self.valid_fold, self.in_chnls, self.ts)
 		params         = {'batch_size': self.batch_size, 'shuffle': False}
 		self.valid_ldr = torch.utils.data.DataLoader(valid_set, **params)
 
 
 	def build_test_loader(self):
-		test_set       = Dataset(self.test_set)
+		test_set       = Dataset(self.test_set, self.in_chnls, self.ts)
 		params         = {'batch_size': self.batch_size, 'shuffle': False}
 		self.test_ldr  = torch.utils.data.DataLoader(test_set, **params)
 
@@ -623,6 +625,7 @@ class CV_Training(Training):
 			self.model.load_state_dict(self.init_model_dict)
 			self.cvm['model_dicts'][cv_i] = self.model.state_dict()
 			self.loss_fn = torch.nn.CrossEntropyLoss()
+			self.opt = torch.optim.Adam(self.model.parameters(), lr=0.01)
 			self.cv_training_split(cv_i, fold_size)
 			self.cv_build_loaders()
 			self.cvm['max_epoch_score'][cv_i] = 0
@@ -630,7 +633,7 @@ class CV_Training(Training):
 			print("Training using ", str(cv_i), " fold for validation.")
 			p_bar = tqdm(range(self.epochs), colour='green')
 			for epoch in p_bar:
-				if self.ts:
+				if self.ts == 3:
 					# print("Enhanced training: Teacher - Student model")
 					tr_score, tr_loss = self.enhanced_epoch_training()
 				else:
@@ -725,13 +728,14 @@ class CV_Training(Training):
 		current_loss = 0.0
 		self.metric.reset()
 		idx = 0
-		for x, y in self.test_ldr:
-			x, y = self.prepare_data(x, y)
+		for x, x_, y in self.test_ldr:
+			x, x_, y = self.prepare_data(x, x_, y)
 
 			with torch.no_grad():
 				outputs = self.model(x)
 
 			preds = torch.argmax(outputs, dim=1)
+			# preds = cpu().detach().numpy()
 			# print(preds.size())
 			score = self.metric.update(preds, y)
 			# self.save_sample_preds(x, preds, y, idx)
