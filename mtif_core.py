@@ -29,7 +29,7 @@ class Dataset(torch.utils.data.Dataset):
 		obj = self.dtst[index, :, :, :]
 		
 		if self.ts == 1:
-			x = torch.from_numpy(obj[:, :, :self.in_chnls-1])
+			x = torch.from_numpy(obj[:, :, :self.in_chnls-2])
 			x_ = x
 			y = torch.from_numpy(obj[:, :, self.in_chnls-1])
 		elif self.ts == 2:
@@ -38,7 +38,7 @@ class Dataset(torch.utils.data.Dataset):
 			y = torch.from_numpy(obj[:, :, self.in_chnls-1])
 		else:
 			x = torch.from_numpy(obj[:, :, 0])
-			x_ = torch.from_numpy(obj[:, :, :self.in_chnls-1])
+			x_ = torch.from_numpy(obj[:, :, :self.in_chnls-2])
 			y = torch.from_numpy(obj[:, :, self.in_chnls-1])
 		
 		
